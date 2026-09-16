@@ -2992,3 +2992,40 @@ main {
     padding: 30px 22px;
   }
 }
+/* =========================================================
+   MOBILE HOMEPAGE SPACING - FINAL FIX
+========================================================= */
+
+@media (max-width: 640px) {
+  /* Featured products */
+  .section {
+    padding-top: 60px;
+    padding-bottom: 55px;
+  }
+
+  /* Philosophy/editorial section */
+  .editorial {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Stop the editorial photo from occupying most of the screen */
+  .editorial-image {
+    min-height: 0 !important;
+    height: 150px !important;
+    background-position: center;
+  }
+
+  /* Bring philosophy text much closer */
+  .editorial-copy {
+    padding: 48px 20px 55px;
+  }
+
+  .editorial-copy h2 {
+    font-size: 44px;
+  }
+
+  .editorial-copy p {
+    margin: 22px 0 28px;
+  }
+}
