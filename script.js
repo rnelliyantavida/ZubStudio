@@ -1111,16 +1111,72 @@ function removeCartItem(index) {
    CHECKOUT PLACEHOLDER
 ========================================================= */
 
-function startCheckout() {
-  const whatsappNumber = "919535611778";
+/* =========================================================
+   ZUBSTUDIO WHATSAPP CHECKOUT
+========================================================= */
 
+/* =========================================================
+   GET FULL PRODUCT IMAGE URL
+
+   Works with:
+   ./assets/product-1.jpg
+
+   AND later:
+   https://res.cloudinary.com/...
+========================================================= */
+
+function getProductImageURL(product) {
+  const image = product.images?.[0];
+
+  if (!image) {
+    return "";
+  }
+
+  /* Already a full URL from API / Cloudinary */
+
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  /* Convert local assets image to full public URL */
+
+  return new URL(image, window.location.href).href;
+}
+
+/* =========================================================
+   START WHATSAPP CHECKOUT
+========================================================= */
+
+function startCheckout() {
   if (cart.length === 0) {
     showToast("Your bag is empty.");
 
     return;
   }
 
-  let message = `NEW ZUBSTUDIO ORDER\n\n`;
+  /* =======================================================
+     ZUBSTUDIO WHATSAPP NUMBER
+
+     CHANGE THIS NUMBER
+
+     Example:
+     919876543210
+
+     Do NOT use:
+     +91 98765 43210
+
+     No + sign
+     No spaces
+     No dashes
+  ======================================================= */
+
+  const whatsappNumber = "91XXXXXXXXXX";
+
+  let message = `*NEW ZUBSTUDIO ORDER*
+
+`;
+
+  let total = 0;
 
   cart.forEach((item, index) => {
     const product = findProduct(item.productId);
@@ -1131,36 +1187,57 @@ function startCheckout() {
 
     const itemTotal = product.price * item.quantity;
 
-    message += `${index + 1}. ${product.name}
+    total += itemTotal;
+
+    /* Get full image URL */
+
+    const imageURL = getProductImageURL(product);
+
+    /* Get product page URL */
+
+    const productURL = `${window.location.origin}${window.location.pathname}#/product/${product.id}`;
+
+    /* Add product to WhatsApp message */
+
+    message += `*${index + 1}. ${product.name}*
+
 Size: ${item.size}
-Color: ${product.color}
+Color: ${product.color || "-"}
 Quantity: ${item.quantity}
 Price: ${money(itemTotal)}
+
+${
+  imageURL
+    ? `Product Image:
+${imageURL}
+
+`
+    : ""
+}View Product:
+${productURL}
 
 `;
   });
 
-  const total = cart.reduce((sum, item) => {
-    const product = findProduct(item.productId);
+  /* =======================================================
+     ORDER TOTAL
+  ======================================================= */
 
-    if (!product) {
-      return sum;
-    }
+  message += `──────────────────
+*TOTAL: ${money(total)}*
+──────────────────
 
-    return sum + product.price * item.quantity;
-  }, 0);
-
-  message += `--------------------
-TOTAL: ${money(total)}
---------------------
-
-CUSTOMER DETAILS
+*CUSTOMER DETAILS*
 
 Name:
 Phone:
 Delivery Address:
 
-Please confirm availability and payment details.`;
+Please confirm my order, availability and payment details.`;
+
+  /* =======================================================
+     OPEN ZUBSTUDIO WHATSAPP
+  ======================================================= */
 
   const whatsappURL = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
