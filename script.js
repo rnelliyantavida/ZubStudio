@@ -1599,29 +1599,32 @@ function render() {
   switch (page) {
     case "shop":
       app.innerHTML = shopPage();
-
       break;
 
     case "product":
       app.innerHTML = productPage(parameter);
-
       break;
 
     case "cart":
       app.innerHTML = cartPage();
-
       break;
 
     case "about":
       app.innerHTML = aboutPage();
+      break;
 
+    /* ==========================================
+       ADMIN
+    ========================================== */
+
+    case "admin":
+      app.innerHTML = adminPage();
       break;
 
     case "home":
 
     default:
       app.innerHTML = homePage();
-
       break;
   }
 
@@ -1665,3 +1668,520 @@ window.addEventListener("hashchange", render);
 updateCartCount();
 
 render();
+
+/* =========================================================
+   ZUBSTUDIO ADMIN
+   FRONTEND ONLY FOR NOW
+
+   Later:
+   Publish -> /api/products -> MongoDB
+   Images -> Cloudinary -> URLs stored in MongoDB
+========================================================= */
+
+let adminImages = [];
+
+/* =========================================================
+   ADMIN PAGE
+========================================================= */
+
+function adminPage() {
+  return `
+    <section class="admin-page">
+
+      <div class="admin-header">
+
+        <div>
+          <p class="admin-eyebrow">
+            ZUBSTUDIO
+          </p>
+
+          <h1>
+            Product Manager
+          </h1>
+
+          <p class="admin-subtitle">
+            Add new products to your online collection.
+          </p>
+        </div>
+
+        <a
+          href="#/shop"
+          class="admin-view-store"
+        >
+          View Store
+          <i class="bx bx-right-arrow-alt"></i>
+        </a>
+
+      </div>
+
+
+      <div class="admin-layout">
+
+
+        <!-- =========================================
+             LEFT SIDE
+             PRODUCT FORM
+        ========================================== -->
+
+        <div class="admin-card">
+
+          <div class="admin-card-heading">
+
+            <span class="admin-step">
+              01
+            </span>
+
+            <div>
+              <h2>
+                Product Information
+              </h2>
+
+              <p>
+                Enter the details customers will see.
+              </p>
+            </div>
+
+          </div>
+
+
+          <div class="admin-form">
+
+
+            <!-- PRODUCT NAME -->
+
+            <div class="admin-field admin-full">
+
+              <label for="adminProductName">
+                Product Name
+              </label>
+
+              <input
+                id="adminProductName"
+                type="text"
+                placeholder="e.g. Falah Premium Pure Cotton Collection"
+              >
+
+            </div>
+
+
+            <!-- CODE -->
+
+            <div class="admin-field">
+
+              <label for="adminProductCode">
+                Product Code
+              </label>
+
+              <input
+                id="adminProductCode"
+                type="text"
+                placeholder="e.g. Nop37"
+              >
+
+            </div>
+
+
+            <!-- PRICE -->
+
+            <div class="admin-field">
+
+              <label for="adminProductPrice">
+                Price
+              </label>
+
+              <div class="admin-price-input">
+
+                <span>
+                  ₹
+                </span>
+
+                <input
+                  id="adminProductPrice"
+                  type="number"
+                  min="0"
+                  placeholder="1599"
+                >
+
+              </div>
+
+            </div>
+
+
+            <!-- CATEGORY -->
+
+            <div class="admin-field">
+
+              <label for="adminProductCategory">
+                Category
+              </label>
+
+              <select id="adminProductCategory">
+
+                <option value="Sets">
+                  Sets
+                </option>
+
+                <option value="Dresses">
+                  Dresses
+                </option>
+
+                <option value="Kurtas">
+                  Kurtas
+                </option>
+
+                <option value="Abayas">
+                  Abayas
+                </option>
+
+                <option value="New Arrivals">
+                  New Arrivals
+                </option>
+
+                <option value="Other">
+                  Other
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <!-- AVAILABILITY -->
+
+            <div class="admin-field">
+
+              <label for="adminProductStatus">
+                Availability
+              </label>
+
+              <select id="adminProductStatus">
+
+                <option value="available">
+                  Available
+                </option>
+
+                <option value="sold-out">
+                  Sold Out
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <!-- DESCRIPTION -->
+
+            <div class="admin-field admin-full">
+
+              <label for="adminProductDescription">
+                Product Description
+              </label>
+
+              <textarea
+                id="adminProductDescription"
+                rows="7"
+                placeholder="Top heavy Cotton embroidered&#10;Bottom Cotton&#10;Dupatta Cotton Dup Embroidered"
+              ></textarea>
+
+              <p class="admin-field-help">
+                You can paste the same description you normally
+                send on WhatsApp.
+              </p>
+
+            </div>
+
+
+          </div>
+
+        </div>
+
+
+
+        <!-- =========================================
+             IMAGE UPLOAD
+        ========================================== -->
+
+        <div class="admin-card">
+
+          <div class="admin-card-heading">
+
+            <span class="admin-step">
+              02
+            </span>
+
+            <div>
+
+              <h2>
+                Product Photos
+              </h2>
+
+              <p>
+                Upload multiple photos of the outfit.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <label
+            for="adminImageUpload"
+            class="admin-upload-box"
+          >
+
+            <i class="bx bx-image-add"></i>
+
+            <strong>
+              Add Product Photos
+            </strong>
+
+            <span>
+              Choose images from your phone or computer
+            </span>
+
+            <span class="admin-upload-button">
+              Select Photos
+            </span>
+
+          </label>
+
+
+          <input
+            id="adminImageUpload"
+            class="admin-file-input"
+            type="file"
+            accept="image/*"
+            multiple
+            onchange="handleAdminImages(event)"
+          >
+
+
+          <div
+            id="adminImagePreview"
+            class="admin-image-preview"
+          ></div>
+
+        </div>
+
+
+
+        <!-- =========================================
+             PUBLISH
+        ========================================== -->
+
+        <div class="admin-publish-card">
+
+          <div>
+
+            <p class="admin-publish-label">
+              Ready to publish?
+            </p>
+
+            <h2>
+              Add this product to ZUBSTUDIO
+            </h2>
+
+            <p>
+              Once the backend is connected, publishing will
+              immediately make this product available in the shop.
+            </p>
+
+          </div>
+
+
+          <button
+            type="button"
+            class="admin-publish-button"
+            onclick="publishAdminProduct()"
+          >
+
+            Publish Product
+
+            <i class="bx bx-right-arrow-alt"></i>
+
+          </button>
+
+
+          <div
+            id="adminMessage"
+            class="admin-message"
+          ></div>
+
+        </div>
+
+
+      </div>
+
+    </section>
+  `;
+}
+
+/* =========================================================
+   IMAGE PREVIEW
+========================================================= */
+
+function handleAdminImages(event) {
+  const files = Array.from(event.target.files);
+
+  if (!files.length) {
+    return;
+  }
+
+  files.forEach((file) => {
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      adminImages.push({
+        file: file,
+        preview: e.target.result,
+      });
+
+      renderAdminImages();
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =========================================================
+   RENDER IMAGE PREVIEWS
+========================================================= */
+
+function renderAdminImages() {
+  const container = document.getElementById("adminImagePreview");
+
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = adminImages
+    .map((image, index) => {
+      return `
+
+          <div class="admin-preview-image">
+
+            <img
+              src="${image.preview}"
+              alt="Product preview"
+            >
+
+            ${
+              index === 0
+                ? `
+                  <span class="admin-cover-label">
+                    Cover
+                  </span>
+                `
+                : ""
+            }
+
+
+            <button
+              type="button"
+              onclick="removeAdminImage(${index})"
+              aria-label="Remove image"
+            >
+              <i class="bx bx-x"></i>
+            </button>
+
+          </div>
+
+        `;
+    })
+    .join("");
+}
+
+/* =========================================================
+   REMOVE UPLOADED IMAGE
+========================================================= */
+
+function removeAdminImage(index) {
+  adminImages.splice(index, 1);
+
+  renderAdminImages();
+}
+
+/* =========================================================
+   PUBLISH PRODUCT
+   FRONTEND TEST FOR NOW
+========================================================= */
+
+function publishAdminProduct() {
+  const name = document.getElementById("adminProductName")?.value.trim();
+
+  const code = document.getElementById("adminProductCode")?.value.trim();
+
+  const price = document.getElementById("adminProductPrice")?.value;
+
+  const category = document.getElementById("adminProductCategory")?.value;
+
+  const status = document.getElementById("adminProductStatus")?.value;
+
+  const description = document
+    .getElementById("adminProductDescription")
+    ?.value.trim();
+
+  const message = document.getElementById("adminMessage");
+
+  if (!name || !code || !price || !description) {
+    message.innerHTML = `
+        <span class="admin-error">
+          Please complete the product name,
+          code, price and description.
+        </span>
+      `;
+
+    return;
+  }
+
+  if (adminImages.length === 0) {
+    message.innerHTML = `
+        <span class="admin-error">
+          Please add at least one product photo.
+        </span>
+      `;
+
+    return;
+  }
+
+  const product = {
+    name: name,
+
+    code: code,
+
+    price: Number(price),
+
+    category: category,
+
+    status: status,
+
+    description: description,
+
+    images: adminImages.map((image) => image.file.name),
+  };
+
+  /*
+     FRONTEND TEST ONLY.
+
+     Later this is where we'll:
+
+     1. Upload images to Cloudinary
+     2. Receive image URLs
+     3. POST product to /api/products
+     4. Save product to MongoDB
+  */
+
+  console.log("ZUBSTUDIO PRODUCT:", product);
+
+  message.innerHTML = `
+      <span class="admin-success">
+        ✓ Product is ready.
+
+        Backend connection is the next step.
+      </span>
+    `;
+}
