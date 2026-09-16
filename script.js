@@ -848,159 +848,309 @@ function quickAdd(productId) {
 function cartPage() {
   if (cart.length === 0) {
     return `
-
       <section class="empty-cart">
 
         <i class="bx bx-shopping-bag"></i>
 
-
-        <h2>
-          Your bag is empty.
-        </h2>
-
+        <h2>Your bag is empty</h2>
 
         <p>
           Discover the latest ZUBSTUDIO collection.
         </p>
 
-
         <a
           href="#/shop"
           class="btn btn-dark"
         >
-          Shop Collection
+          Continue Shopping
         </a>
 
       </section>
 
-
       ${footer()}
-
     `;
   }
 
-  const subtotal = cart.reduce((sum, item) => {
-    const product = findProduct(item.productId);
+  let subtotal = 0;
 
-    return sum + product.price * item.quantity;
-  }, 0);
+  const cartItems = cart
+    .map((item) => {
+      const product = findProduct(item.productId);
+
+      if (!product) {
+        return "";
+      }
+
+      const itemTotal = product.price * item.quantity;
+
+      subtotal += itemTotal;
+
+      return `
+
+      <div class="cart-item">
+
+        <a
+          href="#/product/${product.id}"
+        >
+          <img
+            class="cart-item-image"
+            src="${product.images[0]}"
+            alt="${product.name}"
+          >
+        </a>
+
+
+        <div>
+
+          <h3>
+            ${product.name}
+          </h3>
+
+          <p class="cart-item-meta">
+            Size: ${item.size}
+            &nbsp;•&nbsp;
+            ${product.color || ""}
+          </p>
+
+
+          <div class="quantity">
+
+            <button
+              type="button"
+              onclick="changeQuantity(
+                '${item.productId}',
+                '${item.size}',
+                -1
+              )"
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+
+
+            <span>
+              ${item.quantity}
+            </span>
+
+
+            <button
+              type="button"
+              onclick="changeQuantity(
+                '${item.productId}',
+                '${item.size}',
+                1
+              )"
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+
+          </div>
+
+
+          <br>
+
+
+          <button
+            type="button"
+            class="remove-button"
+            onclick="removeCartItem(
+              '${item.productId}',
+              '${item.size}'
+            )"
+          >
+            Remove
+          </button>
+
+        </div>
+
+
+        <div class="cart-item-price">
+          ${money(itemTotal)}
+        </div>
+
+      </div>
+
+    `;
+    })
+    .join("");
 
   return `
 
     <section class="cart-page">
 
-      <p class="section-eyebrow">
-        ZUBSTUDIO
-      </p>
+      <h1>Your Bag</h1>
 
 
-      <h1>
-        Shopping Bag
-      </h1>
+      <div class="checkout-layout">
 
 
-      <div class="cart-layout">
+        <!-- =========================================
+             LEFT SIDE
+             CART + CUSTOMER DETAILS
+        ========================================== -->
 
         <div>
 
-          ${cart
-            .map((item, index) => {
-              const product = findProduct(item.productId);
+          <div class="cart-items">
 
-              return `
+            ${cartItems}
 
-                <article class="cart-item">
-
-                  <a
-                    href="#/product/${product.id}"
-                  >
-
-                    <img
-                      class="cart-item-image"
-                      src="${product.images[0]}"
-                      alt="${product.name}"
-                    >
-
-                  </a>
+          </div>
 
 
-                  <div>
+          <!-- =====================================
+               DELIVERY DETAILS
+          ====================================== -->
 
-                    <h3>
-                      ${product.name}
-                    </h3>
+          <div class="delivery-section">
 
+            <p class="checkout-eyebrow">
+              Checkout
+            </p>
 
-                    <p class="cart-item-meta">
+            <h2>
+              Delivery Details
+            </h2>
 
-                      ${product.color}
-                      · Size ${item.size}
-
-                    </p>
-
-
-                    <div class="quantity">
-
-                      <button
-                        onclick="
-                          changeQuantity(
-                            ${index},
-                            -1
-                          )
-                        "
-                      >
-                        −
-                      </button>
+            <p class="delivery-intro">
+              Enter your delivery information below.
+              Your complete order will then be sent
+              to ZUBSTUDIO through WhatsApp.
+            </p>
 
 
-                      <span>
-                        ${item.quantity}
-                      </span>
+            <div class="checkout-form">
 
 
-                      <button
-                        onclick="
-                          changeQuantity(
-                            ${index},
-                            1
-                          )
-                        "
-                      >
-                        +
-                      </button>
+              <!-- NAME -->
 
-                    </div>
+              <div class="form-group form-full">
 
+                <label for="customerName">
+                  Full Name
+                </label>
 
-                    <br>
+                <input
+                  id="customerName"
+                  type="text"
+                  placeholder="Your full name"
+                  autocomplete="name"
+                >
 
-
-                    <button
-                      class="remove-button"
-                      onclick="
-                        removeCartItem(${index})
-                      "
-                    >
-                      Remove
-                    </button>
-
-                  </div>
+              </div>
 
 
-                  <div class="cart-item-price">
+              <!-- PHONE -->
 
-                    ${money(product.price * item.quantity)}
+              <div class="form-group form-full">
 
-                  </div>
+                <label for="customerPhone">
+                  Phone Number
+                </label>
 
-                </article>
+                <input
+                  id="customerPhone"
+                  type="tel"
+                  placeholder="Your phone number"
+                  autocomplete="tel"
+                >
 
-              `;
-            })
-            .join("")}
+              </div>
+
+
+              <!-- ADDRESS -->
+
+              <div class="form-group form-full">
+
+                <label for="customerAddress">
+                  Delivery Address
+                </label>
+
+                <textarea
+                  id="customerAddress"
+                  placeholder="House / apartment, street, area"
+                  autocomplete="street-address"
+                  rows="3"
+                ></textarea>
+
+              </div>
+
+
+              <!-- CITY -->
+
+              <div class="form-group">
+
+                <label for="customerCity">
+                  City
+                </label>
+
+                <input
+                  id="customerCity"
+                  type="text"
+                  placeholder="City"
+                  autocomplete="address-level2"
+                >
+
+              </div>
+
+
+              <!-- STATE -->
+
+              <div class="form-group">
+
+                <label for="customerState">
+                  State
+                </label>
+
+                <input
+                  id="customerState"
+                  type="text"
+                  placeholder="State"
+                  autocomplete="address-level1"
+                >
+
+              </div>
+
+
+              <!-- PIN CODE -->
+
+              <div class="form-group form-full">
+
+                <label for="customerPin">
+                  PIN Code
+                </label>
+
+                <input
+                  id="customerPin"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  placeholder="6-digit PIN code"
+                  autocomplete="postal-code"
+                >
+
+              </div>
+
+
+            </div>
+
+
+            <div
+              id="checkoutError"
+              class="checkout-error"
+            ></div>
+
+          </div>
 
         </div>
 
+
+
+        <!-- =========================================
+             RIGHT SIDE
+             ORDER SUMMARY
+        ========================================== -->
 
         <aside class="cart-summary">
 
@@ -1025,22 +1175,17 @@ function cartPage() {
           <div class="summary-row">
 
             <span>
-              Shipping
+              Delivery
             </span>
 
             <span>
-              Calculated later
+              Confirm on WhatsApp
             </span>
 
           </div>
 
 
-          <div
-            class="
-              summary-row
-              summary-total
-            "
-          >
+          <div class="summary-row summary-total">
 
             <span>
               Total
@@ -1054,24 +1199,32 @@ function cartPage() {
 
 
           <p class="cart-note">
-
-            Taxes and shipping,
-            if applicable,
-            will be confirmed before
-            your order is finalized.
-
+            Delivery charges and payment details
+            will be confirmed by ZUBSTUDIO.
           </p>
 
 
-        <button
-          class="btn btn-dark btn-full"
-          onclick="startCheckout()"
-        >
+          <button
+            type="button"
+            class="whatsapp-order-button"
+            onclick="startCheckout()"
+          >
+
             <i class="bx bxl-whatsapp"></i>
-            Order on WhatsApp
-        </button>
+
+            Place Order on WhatsApp
+
+          </button>
+
+
+          <p class="whatsapp-note">
+            Your order and delivery details will
+            be prepared automatically. You only
+            need to send the message in WhatsApp.
+          </p>
 
         </aside>
+
 
       </div>
 
@@ -1112,17 +1265,7 @@ function removeCartItem(index) {
 ========================================================= */
 
 /* =========================================================
-   ZUBSTUDIO WHATSAPP CHECKOUT
-========================================================= */
-
-/* =========================================================
-   GET FULL PRODUCT IMAGE URL
-
-   Works with:
-   ./assets/product-1.jpg
-
-   AND later:
-   https://res.cloudinary.com/...
+   GET PUBLIC PRODUCT IMAGE URL
 ========================================================= */
 
 function getProductImageURL(product) {
@@ -1132,45 +1275,107 @@ function getProductImageURL(product) {
     return "";
   }
 
-  /* Already a full URL from API / Cloudinary */
+  /* API / CLOUDINARY / FULL URL */
 
   if (image.startsWith("http://") || image.startsWith("https://")) {
     return image;
   }
 
-  /* Convert local assets image to full public URL */
+  /* LOCAL ASSETS IMAGE */
 
   return new URL(image, window.location.href).href;
 }
 
 /* =========================================================
-   START WHATSAPP CHECKOUT
+   WHATSAPP CHECKOUT
 ========================================================= */
 
 function startCheckout() {
+  /* -------------------------------------------------------
+     MAKE SURE CART IS NOT EMPTY
+  ------------------------------------------------------- */
+
   if (cart.length === 0) {
     showToast("Your bag is empty.");
 
     return;
   }
 
+  /* -------------------------------------------------------
+     GET CUSTOMER DETAILS
+  ------------------------------------------------------- */
+
+  const name = document.getElementById("customerName")?.value.trim();
+
+  const phone = document.getElementById("customerPhone")?.value.trim();
+
+  const address = document.getElementById("customerAddress")?.value.trim();
+
+  const city = document.getElementById("customerCity")?.value.trim();
+
+  const state = document.getElementById("customerState")?.value.trim();
+
+  const pin = document.getElementById("customerPin")?.value.trim();
+
+  const errorBox = document.getElementById("checkoutError");
+
+  /* -------------------------------------------------------
+     VALIDATE
+  ------------------------------------------------------- */
+
+  if (!name || !phone || !address || !city || !state || !pin) {
+    if (errorBox) {
+      errorBox.textContent =
+        "Please complete all delivery details before placing your order.";
+    }
+
+    return;
+  }
+
+  /* PIN VALIDATION */
+
+  if (!/^\d{6}$/.test(pin)) {
+    if (errorBox) {
+      errorBox.textContent = "Please enter a valid 6-digit PIN code.";
+    }
+
+    return;
+  }
+
+  /* PHONE VALIDATION */
+
+  const cleanPhone = phone.replace(/\D/g, "");
+
+  if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+    if (errorBox) {
+      errorBox.textContent = "Please enter a valid phone number.";
+    }
+
+    return;
+  }
+
+  if (errorBox) {
+    errorBox.textContent = "";
+  }
+
   /* =======================================================
      ZUBSTUDIO WHATSAPP NUMBER
 
-     CHANGE THIS NUMBER
+     CHANGE THIS TO THE REAL NUMBER.
 
      Example:
      919876543210
 
-     Do NOT use:
-     +91 98765 43210
-
-     No + sign
-     No spaces
-     No dashes
+     NO +
+     NO SPACES
+     NO DASHES
   ======================================================= */
 
   const whatsappNumber = "919535611778";
+
+  /* -------------------------------------------------------
+     CREATE ORDER
+  ------------------------------------------------------- */
 
   let message = `*NEW ZUBSTUDIO ORDER*
 
@@ -1178,7 +1383,9 @@ function startCheckout() {
 
   let total = 0;
 
-  cart.forEach((item, index) => {
+  let orderNumber = 1;
+
+  cart.forEach((item) => {
     const product = findProduct(item.productId);
 
     if (!product) {
@@ -1189,55 +1396,66 @@ function startCheckout() {
 
     total += itemTotal;
 
-    /* Get full image URL */
-
     const imageURL = getProductImageURL(product);
 
-    /* Get product page URL */
-
-    const productURL = `${window.location.origin}${window.location.pathname}#/product/${product.id}`;
-
-    /* Add product to WhatsApp message */
-
-    message += `*${index + 1}. ${product.name}*
+    message += `*${orderNumber}. ${product.name}*
 
 Size: ${item.size}
 Color: ${product.color || "-"}
 Quantity: ${item.quantity}
 Price: ${money(itemTotal)}
-
-${
-  imageURL
-    ? `Product Image:
-${imageURL}
-
-`
-    : ""
-}View Product:
-${productURL}
-
 `;
+
+    /*
+      Product image link.
+      Works with /assets now and
+      full API image URLs later.
+    */
+
+    if (imageURL) {
+      message += `
+Product Image:
+${imageURL}
+`;
+    }
+
+    message += `
+`;
+
+    orderNumber++;
   });
 
-  /* =======================================================
-     ORDER TOTAL
-  ======================================================= */
+  /* -------------------------------------------------------
+     TOTAL
+  ------------------------------------------------------- */
 
   message += `──────────────────
 *TOTAL: ${money(total)}*
 ──────────────────
 
-*CUSTOMER DETAILS*
+`;
 
-Name:
-Phone:
-Delivery Address:
+  /* -------------------------------------------------------
+     CUSTOMER DETAILS
+  ------------------------------------------------------- */
 
-Please confirm my order, availability and payment details.`;
+  message += `*DELIVERY DETAILS*
 
-  /* =======================================================
-     OPEN ZUBSTUDIO WHATSAPP
-  ======================================================= */
+Name: ${name}
+Phone: ${phone}
+
+Address:
+${address}
+
+City: ${city}
+State: ${state}
+PIN Code: ${pin}
+
+Please confirm availability, delivery charges and payment details.`;
+
+  /* -------------------------------------------------------
+     OPEN WHATSAPP
+  ------------------------------------------------------- */
 
   const whatsappURL = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
