@@ -1,6 +1,6 @@
 /* =========================================================
    ZUBSTUDIO
-   Frontend Store
+   FRONTEND STORE + ADMIN + API
 ========================================================= */
 
 /* =========================================================
@@ -9,127 +9,43 @@
 
 const CONFIG = {
   brand: "ZUBSTUDIO",
+
   currency: "INR",
+
   locale: "en-IN",
+
+  /* LOCAL BACKEND */
+  api: "https://zubstudio-backend.onrender.com/api",
+
+  /* ZUBSTUDIO WHATSAPP */
+  whatsappNumber: "919535611778",
+
+  /* NUMBER OF PRODUCTS ON HOMEPAGE */
+  homeNewArrivalLimit: 4,
+
+  /* HOW MANY DAYS COUNT AS "NEW" */
+  newArrivalDays: 30,
 };
-
-/* =========================================================
-   PRODUCTS
-   Temporary frontend data.
-   Later this comes from MongoDB through our API.
-========================================================= */
-
-const products = [
-  {
-    id: "signature-black-dress",
-
-    name: "Signature Black Dress",
-
-    price: 129,
-
-    category: "Dresses",
-
-    description:
-      "A refined black silhouette designed with understated structure and effortless movement. Created for evenings, occasions and elevated everyday dressing.",
-
-    images: ["./assets/churi1.jpeg", "./assets/churi1.jpeg"],
-
-    sizes: ["XS", "S", "M", "L", "XL"],
-
-    color: "Black",
-
-    stock: 10,
-
-    featured: true,
-
-    isNew: true,
-  },
-
-  {
-    id: "ivory-tailored-set",
-
-    name: "Ivory Tailored Set",
-
-    price: 159,
-
-    category: "Sets",
-
-    description:
-      "Clean tailoring meets relaxed elegance. A sophisticated ivory set designed for effortless styling from day to evening.",
-
-    images: ["./assets/churi2.jpeg", "./assets/churi2.jpeg"],
-
-    sizes: ["XS", "S", "M", "L"],
-
-    color: "Ivory",
-
-    stock: 8,
-
-    featured: true,
-
-    isNew: true,
-  },
-
-  {
-    id: "midnight-abaya",
-
-    name: "Midnight Abaya",
-
-    price: 145,
-
-    category: "Abayas",
-
-    description:
-      "An elegant flowing silhouette in deep black with considered proportions and a timeless, minimal finish.",
-
-    images: ["./assets/churi3.jpeg", "./assets/churi3.jpeg"],
-
-    sizes: ["S", "M", "L", "XL"],
-
-    color: "Black",
-
-    stock: 7,
-
-    featured: true,
-
-    isNew: false,
-  },
-
-  {
-    id: "sand-linen-set",
-
-    name: "Sand Linen Set",
-
-    price: 139,
-
-    category: "Sets",
-
-    description:
-      "An easy two-piece linen-inspired set in a warm neutral tone. Designed for understated everyday luxury.",
-
-    images: ["./assets/churi4.jpeg", "./assets/churi4.jpeg"],
-
-    sizes: ["XS", "S", "M", "L", "XL"],
-
-    color: "Sand",
-
-    stock: 12,
-
-    featured: true,
-
-    isNew: true,
-  },
-];
 
 /* =========================================================
    STATE
 ========================================================= */
+
+let products = [];
+
+let productsLoaded = false;
+
+let productsLoading = false;
+
+let productLoadError = "";
 
 let cart = JSON.parse(localStorage.getItem("zubstudioCart")) || [];
 
 let activeCategory = "All";
 
 let selectedSize = null;
+
+let adminImages = [];
 
 /* =========================================================
    ELEMENTS
@@ -148,25 +64,250 @@ const searchInput = document.getElementById("global-search");
 const searchResults = document.getElementById("search-results");
 
 /* =========================================================
-   UTILITIES
+   MONEY
 ========================================================= */
 
 function money(value) {
+  const number = Number(value) || 0;
+
   return new Intl.NumberFormat(CONFIG.locale, {
     style: "currency",
+
     currency: CONFIG.currency,
+
     minimumFractionDigits: 0,
-  }).format(value);
+
+    maximumFractionDigits: 0,
+  }).format(number);
 }
 
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHTML(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/* =========================================================
+   PRODUCT ID
+
+   MongoDB gives us _id.
+
+   Local/future data may have id.
+
+   This function supports both.
+========================================================= */
+
+function productId(product) {
+  return String(product?._id || product?.id || "");
+}
+
+/* =========================================================
+   FIND PRODUCT
+========================================================= */
+
+function findProduct(id) {
+  return products.find((product) => productId(product) === String(id));
+}
+
+/* =========================================================
+   PRODUCT IMAGES
+
+   Backend returns:
+
+   images: [
+     {
+       url: "...",
+       publicId: "..."
+     }
+   ]
+
+   This converts that into:
+
+   [
+     "https://..."
+   ]
+========================================================= */
+
+function getProductImages(product) {
+  if (!Array.isArray(product?.images)) {
+    return [];
+  }
+
+  return product.images
+    .map((image) => {
+      if (typeof image === "string") {
+        return image;
+      }
+
+      return image?.url || "";
+    })
+    .filter(Boolean);
+}
+
+function getProductImageURL(product) {
+  return getProductImages(product)[0] || "";
+}
+
+/* =========================================================
+   OPTIONAL SIZES
+
+   If backend doesn't send sizes,
+   no sizes are created.
+========================================================= */
+
+function getProductSizes(product) {
+  if (!Array.isArray(product?.sizes)) {
+    return [];
+  }
+
+  return product.sizes.filter(
+    (size) => size !== null && size !== undefined && String(size).trim() !== "",
+  );
+}
+
+function productHasSizes(product) {
+  return getProductSizes(product).length > 0;
+}
+
+/* =========================================================
+   SOLD OUT
+========================================================= */
+
+function isSoldOut(product) {
+  if (product?.status === "sold-out") {
+    return true;
+  }
+
+  if (
+    product?.stock !== undefined &&
+    product?.stock !== null &&
+    Number(product.stock) <= 0
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/* =========================================================
+   NEW ARRIVALS
+
+   THIS IS NOW BASED ON MONGODB createdAt.
+
+   NOT CATEGORY.
+   NOT isNew.
+========================================================= */
+
+function sortNewestFirst(productList) {
+  return [...productList].sort((a, b) => {
+    const dateA = new Date(a.createdAt || 0).getTime();
+
+    const dateB = new Date(b.createdAt || 0).getTime();
+
+    return dateB - dateA;
+  });
+}
+
+/* =========================================================
+   GET LATEST PRODUCTS
+
+   Used on homepage.
+
+   Example:
+   newest 4 products.
+========================================================= */
+
+function getLatestProducts(limit = CONFIG.homeNewArrivalLimit) {
+  return sortNewestFirst(
+    products.filter((product) => product.status !== "sold-out"),
+  ).slice(0, limit);
+}
+
+/* =========================================================
+   IS PRODUCT NEW?
+
+   A product is "New" if created
+   within the configured number
+   of days.
+========================================================= */
+
+function isNewProduct(product) {
+  if (!product?.createdAt) {
+    return false;
+  }
+
+  const created = new Date(product.createdAt).getTime();
+
+  if (Number.isNaN(created)) {
+    return false;
+  }
+
+  const now = Date.now();
+
+  const age = now - created;
+
+  const maxAge = CONFIG.newArrivalDays * 24 * 60 * 60 * 1000;
+
+  return age >= 0 && age <= maxAge;
+}
+
+/* =========================================================
+   GET NEW ARRIVALS
+
+   Shows products added within
+   last 30 days.
+========================================================= */
+
+function getNewArrivals() {
+  return sortNewestFirst(products.filter((product) => isNewProduct(product)));
+}
+
+/* =========================================================
+   CATEGORIES
+
+   GENERATED AUTOMATICALLY
+   FROM MONGODB PRODUCTS.
+========================================================= */
+
+function getCategories() {
+  const categories = products
+    .map((product) => product.category?.trim())
+    .filter(Boolean);
+
+  return ["All", ...new Set(categories)];
+}
+
+/* =========================================================
+   CART STORAGE
+========================================================= */
+
 function saveCart() {
-  localStorage.setItem("zubstudioCart", JSON.stringify(cart));
+  localStorage.setItem(
+    "zubstudioCart",
+
+    JSON.stringify(cart),
+  );
 
   updateCartCount();
 }
 
+/* =========================================================
+   CART COUNT
+========================================================= */
+
 function updateCartCount() {
-  const count = cart.reduce((total, item) => total + item.quantity, 0);
+  const count = cart.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+
+    0,
+  );
 
   const badge = document.getElementById("cart-count");
 
@@ -175,8 +316,16 @@ function updateCartCount() {
   }
 }
 
+/* =========================================================
+   TOAST
+========================================================= */
+
 function showToast(message) {
   const toast = document.getElementById("toast");
+
+  if (!toast) {
+    return;
+  }
 
   toast.textContent = message;
 
@@ -184,14 +333,105 @@ function showToast(message) {
 
   clearTimeout(window.toastTimer);
 
-  window.toastTimer = setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2600);
+  window.toastTimer = setTimeout(
+    () => {
+      toast.classList.remove("show");
+    },
+
+    2600,
+  );
 }
 
-function findProduct(id) {
-  return products.find((product) => product.id === id);
+/* =========================================================
+   LOAD PRODUCTS FROM API
+========================================================= */
+
+async function loadProducts(force = false) {
+  if (productsLoading) {
+    return;
+  }
+
+  if (productsLoaded && !force) {
+    return;
+  }
+
+  productsLoading = true;
+
+  productLoadError = "";
+
+  try {
+    const response = await fetch(`${CONFIG.api}/products`);
+
+    if (!response.ok) {
+      throw new Error(`Unable to load products (${response.status})`);
+    }
+
+    const result = await response.json();
+
+    /*
+      Supports:
+
+      [
+        product,
+        product
+      ]
+
+      OR
+
+      {
+        products: [...]
+      }
+    */
+
+    if (Array.isArray(result)) {
+      products = result;
+    } else if (Array.isArray(result.products)) {
+      products = result.products;
+    } else {
+      products = [];
+    }
+
+    /*
+      Always keep newest
+      products first.
+    */
+
+    products = sortNewestFirst(products);
+
+    productsLoaded = true;
+
+    cleanCart();
+  } catch (error) {
+    console.error("Product loading error:", error);
+
+    productLoadError = "We couldn't load the collection.";
+
+    products = [];
+  } finally {
+    productsLoading = false;
+  }
 }
+
+/* =========================================================
+   CLEAN CART
+
+   Removes products that no
+   longer exist.
+========================================================= */
+
+function cleanCart() {
+  const cleaned = cart.filter((item) => findProduct(item.productId));
+
+  if (cleaned.length !== cart.length) {
+    cart = cleaned;
+
+    saveCart();
+  }
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
 
 function footer() {
   return `
@@ -200,33 +440,42 @@ function footer() {
 
       <div class="footer-inner">
 
+
         <div class="footer-logo">
+
           ZUBSTUDIO
+
         </div>
 
 
         <div class="footer-grid">
 
-          <!-- BRAND -->
 
           <div>
 
-            <h4>ZUBSTUDIO</h4>
+            <h4>
+              ZUBSTUDIO
+            </h4>
 
             <p>
+
               Considered silhouettes.<br>
+
               Refined details.<br>
+
               Pieces designed to remain.
+
             </p>
 
           </div>
 
 
-          <!-- EXPLORE -->
-
           <div>
 
-            <h4>Explore</h4>
+            <h4>
+              Explore
+            </h4>
+
 
             <div class="footer-links">
 
@@ -234,13 +483,16 @@ function footer() {
                 Shop
               </a>
 
-              <a href="#/shop">
+
+              <a href="#/new">
                 New Arrivals
               </a>
+
 
               <a href="#/about">
                 Our Story
               </a>
+
 
               <a href="#/cart">
                 Shopping Bag
@@ -251,17 +503,21 @@ function footer() {
           </div>
 
 
-          <!-- CONTACT -->
-
           <div>
 
-            <h4>Contact</h4>
+            <h4>
+              Contact
+            </h4>
+
 
             <div class="footer-links">
 
-              <a href="tel:+919535611778">
+              <a
+                href="tel:+919535611778"
+              >
                 +91 95356 11778
               </a>
+
 
               <a
                 href="https://wa.me/919535611778"
@@ -271,8 +527,9 @@ function footer() {
                 WhatsApp
               </a>
 
+
               <a
-                href="https://www.instagram.com/zubstudio_by_subi?stkn=MTl5YXB6Z2t5M2RsNA=="
+                href="https://www.instagram.com/zubstudio_by_subi"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -289,11 +546,17 @@ function footer() {
         <div class="footer-bottom">
 
           <span>
-            © ${new Date().getFullYear()} ZUBSTUDIO
+
+            © ${new Date().getFullYear()}
+            ZUBSTUDIO
+
           </span>
 
+
           <span>
+
             DESIGNED WITH INTENTION
+
           </span>
 
         </div>
@@ -306,25 +569,94 @@ function footer() {
 }
 
 /* =========================================================
+   LOADING PAGE
+========================================================= */
+
+function loadingPage() {
+  return `
+
+    <section class="empty-cart">
+
+      <h2>
+        Loading ZUBSTUDIO...
+      </h2>
+
+    </section>
+
+  `;
+}
+
+/* =========================================================
+   ERROR PAGE
+========================================================= */
+
+function errorPage() {
+  return `
+
+    <section class="empty-cart">
+
+      <h2>
+
+        ${escapeHTML(productLoadError || "Unable to load the collection.")}
+
+      </h2>
+
+
+      <button
+        type="button"
+        class="btn btn-dark"
+        onclick="retryProducts()"
+      >
+
+        Try Again
+
+      </button>
+
+    </section>
+
+  `;
+}
+
+async function retryProducts() {
+  productsLoaded = false;
+
+  await loadProducts(true);
+
+  render();
+}
+
+/* =========================================================
    PRODUCT CARD
 ========================================================= */
 
 function productCard(product) {
+  const id = productId(product);
+
+  const image = getProductImageURL(product) || "./favicon.jpeg";
+
+  const soldOut = isSoldOut(product);
+
   return `
 
     <article class="product-card">
 
+
       <a
-        href="#/product/${product.id}"
+        href="#/product/${id}"
         class="product-image-wrap"
       >
 
+
         ${
-          product.isNew
+          isNewProduct(product)
             ? `
+
               <span class="product-badge">
+
                 New
+
               </span>
+
             `
             : ""
         }
@@ -332,46 +664,91 @@ function productCard(product) {
 
         <img
           class="product-image"
-          src="${product.images[0]}"
-          alt="${product.name}"
+
+          src="${escapeHTML(image)}"
+
+          alt="${escapeHTML(product.name || "ZUBSTUDIO product")}"
+
           loading="lazy"
         >
 
 
-        <button
-          class="quick-add"
-          type="button"
-          onclick="
-            event.preventDefault();
-            event.stopPropagation();
-            quickAdd('${product.id}');
-          "
-        >
-          Quick Add
-        </button>
+        ${
+          !soldOut
+            ? `
+
+              <button
+                class="quick-add"
+
+                type="button"
+
+                onclick="
+                  event.preventDefault();
+                  event.stopPropagation();
+
+                  quickAdd(
+                    '${id}'
+                  );
+                "
+              >
+
+                View Piece
+
+              </button>
+
+            `
+            : ""
+        }
+
 
       </a>
 
 
       <div class="product-info">
 
-        <p class="product-category">
-          ${product.category}
-        </p>
+
+        ${
+          product.category
+            ? `
+
+              <p class="product-category">
+
+                ${escapeHTML(product.category)}
+
+              </p>
+
+            `
+            : ""
+        }
 
 
-        <a href="#/product/${product.id}">
+        <a
+          href="#/product/${id}"
+        >
 
           <h3 class="product-name">
-            ${product.name}
+
+            ${escapeHTML(product.name || "ZUBSTUDIO Piece")}
+
           </h3>
 
         </a>
 
 
-        <p class="product-price">
-          ${money(product.price)}
-        </p>
+        ${
+          product.price !== undefined && product.price !== null
+            ? `
+
+              <p class="product-price">
+
+                ${money(product.price)}
+
+              </p>
+
+            `
+            : ""
+        }
+
 
       </div>
 
@@ -381,45 +758,63 @@ function productCard(product) {
 }
 
 /* =========================================================
-   HOME
+   HOME PAGE
+
+   HOMEPAGE NEW ARRIVALS =
+   NEWEST 4 PRODUCTS FROM MONGODB
 ========================================================= */
 
 function homePage() {
-  const featured = products.filter((product) => product.featured);
+  const latest = getLatestProducts(CONFIG.homeNewArrivalLimit);
 
   return `
+
 
     <!-- HERO -->
 
     <section class="hero">
 
+
       <div class="hero-content">
 
+
         <p class="hero-eyebrow">
+
           ZUBSTUDIO — NEW COLLECTION
+
         </p>
 
 
         <h1>
+
           Quiet luxury.<br>
+
           Lasting presence.
+
         </h1>
 
 
         <p class="hero-description">
+
           Timeless silhouettes,
+
           considered details and effortless pieces
+
           created for the modern wardrobe.
+
         </p>
 
 
         <div class="hero-actions">
 
+
           <a
             href="#/shop"
             class="btn btn-light"
           >
+
             Shop Collection
+
           </a>
 
 
@@ -427,51 +822,90 @@ function homePage() {
             href="#/about"
             class="btn btn-outline-light"
           >
+
             Discover ZUBSTUDIO
+
           </a>
+
 
         </div>
 
+
       </div>
+
 
     </section>
 
 
 
-    <!-- FEATURED -->
+    <!-- LATEST PRODUCTS -->
+
 
     <section class="section">
 
+
       <div class="section-header">
+
 
         <div>
 
+
           <p class="section-eyebrow">
+
             The Edit
+
           </p>
 
+
           <h2 class="section-title">
+
             New Arrivals
+
           </h2>
+
 
         </div>
 
 
         <a
           class="text-link"
-          href="#/shop"
+          href="#/new"
         >
-          View Collection
+
+          View New Arrivals
+
         </a>
 
-      </div>
-
-
-      <div class="product-grid">
-
-        ${featured.map(productCard).join("")}
 
       </div>
+
+
+      ${
+        latest.length
+          ? `
+
+            <div class="product-grid">
+
+              ${latest.map(productCard).join("")}
+
+            </div>
+
+          `
+          : `
+
+            <div class="empty-cart">
+
+              <p>
+
+                New pieces coming soon.
+
+              </p>
+
+            </div>
+
+          `
+      }
+
 
     </section>
 
@@ -479,43 +913,63 @@ function homePage() {
 
     <!-- EDITORIAL -->
 
+
     <section class="editorial">
 
-      <div class="editorial-image"></div>
+
+      <div
+        class="editorial-image"
+      ></div>
 
 
       <div class="editorial-copy">
 
+
         <p class="section-eyebrow">
+
           The ZUBSTUDIO Philosophy
+
         </p>
 
 
         <h2>
+
           Elegance without excess.
+
         </h2>
 
 
         <p>
+
           We believe the most memorable pieces
+
           do not need to demand attention.
+
           ZUBSTUDIO is an exploration of proportion,
+
           simplicity and timeless femininity.
+
         </p>
 
 
         <div>
 
+
           <a
             href="#/shop"
             class="btn btn-dark"
           >
+
             Explore The Collection
+
           </a>
+
 
         </div>
 
+
       </div>
+
 
     </section>
 
@@ -530,10 +984,7 @@ function homePage() {
 ========================================================= */
 
 function shopPage() {
-  const categories = [
-    "All",
-    ...new Set(products.map((product) => product.category)),
-  ];
+  const categories = getCategories();
 
   const filtered =
     activeCategory === "All"
@@ -542,71 +993,123 @@ function shopPage() {
 
   return `
 
+
     <section class="shop-header">
 
+
       <p class="section-eyebrow">
+
         ZUBSTUDIO
+
       </p>
 
 
       <h1>
+
         The Collection
+
       </h1>
 
 
       <p>
+
         Refined wardrobe pieces designed
+
         with intention, versatility and
+
         enduring style.
+
       </p>
+
 
     </section>
 
 
+
     <div class="shop-toolbar">
 
+
       <div class="filters">
+
 
         ${categories
           .map(
             (category) => `
 
-            <button
-              class="
-                filter-button
-                ${activeCategory === category ? "active" : ""}
-              "
-              onclick="
-                setCategory('${category}')
-              "
-            >
-              ${category}
-            </button>
 
-          `,
+              <button
+
+                class="
+                  filter-button
+
+                  ${activeCategory === category ? "active" : ""}
+                "
+
+                onclick="
+                  setCategory(
+                    '${escapeHTML(category)}'
+                  )
+                "
+              >
+
+                ${escapeHTML(category)}
+
+              </button>
+
+
+            `,
           )
           .join("")}
+
 
       </div>
 
 
       <div class="product-count">
 
+
         ${filtered.length}
+
+
         ${filtered.length === 1 ? "piece" : "pieces"}
 
+
       </div>
+
 
     </div>
 
 
+
     <section class="shop-products">
 
-      <div class="product-grid">
 
-        ${filtered.map(productCard).join("")}
+      ${
+        filtered.length
+          ? `
 
-      </div>
+            <div class="product-grid">
+
+              ${filtered.map(productCard).join("")}
+
+            </div>
+
+          `
+          : `
+
+            <div class="empty-cart">
+
+              <p>
+
+                No pieces in this category yet.
+
+              </p>
+
+            </div>
+
+          `
+      }
+
 
     </section>
 
@@ -616,10 +1119,106 @@ function shopPage() {
   `;
 }
 
+/* =========================================================
+   SET CATEGORY
+========================================================= */
+
 function setCategory(category) {
   activeCategory = category;
 
   render();
+}
+
+/* =========================================================
+   NEW ARRIVALS PAGE
+
+   LAST 30 DAYS
+========================================================= */
+
+function newArrivalsPage() {
+  const newProducts = getNewArrivals();
+
+  return `
+
+
+    <section class="shop-header">
+
+
+      <p class="section-eyebrow">
+
+        ZUBSTUDIO
+
+      </p>
+
+
+      <h1>
+
+        New Arrivals
+
+      </h1>
+
+
+      <p>
+
+        The latest pieces added to
+
+        the ZUBSTUDIO collection.
+
+      </p>
+
+
+    </section>
+
+
+
+    <section class="shop-products">
+
+
+      ${
+        newProducts.length
+          ? `
+
+            <div class="product-grid">
+
+              ${newProducts.map(productCard).join("")}
+
+            </div>
+
+          `
+          : `
+
+            <div class="empty-cart">
+
+
+              <h2>
+
+                New pieces coming soon
+
+              </h2>
+
+
+              <a
+                href="#/shop"
+                class="btn btn-dark"
+              >
+
+                View Collection
+
+              </a>
+
+
+            </div>
+
+          `
+      }
+
+
+    </section>
+
+
+    ${footer()}
+
+  `;
 }
 
 /* =========================================================
@@ -631,155 +1230,331 @@ function productPage(id) {
 
   if (!product) {
     return `
+
       <div class="empty-cart">
 
+
         <h2>
+
           Product not found
+
         </h2>
+
 
         <a
           href="#/shop"
           class="btn btn-dark"
         >
+
           Return to Shop
+
         </a>
 
+
       </div>
+
+
+      ${footer()}
+
     `;
   }
 
   selectedSize = null;
 
+  const images = getProductImages(product);
+
+  const sizes = getProductSizes(product);
+
+  const soldOut = isSoldOut(product);
+
   return `
+
 
     <section class="product-page">
 
+
       <div class="product-gallery">
 
-        ${product.images
-          .map(
-            (image) => `
 
-            <img
-              src="${image}"
-              alt="${product.name}"
-            >
+        ${
+          images.length
+            ? images
+                .map(
+                  (image) => `
 
-          `,
-          )
-          .join("")}
+
+                    <img
+
+                      src="${escapeHTML(image)}"
+
+                      alt="${escapeHTML(product.name || "ZUBSTUDIO product")}"
+
+                    >
+
+
+                  `,
+                )
+                .join("")
+            : `
+
+              <img
+                src="./favicon.jpeg"
+                alt="ZUBSTUDIO"
+              >
+
+            `
+        }
+
 
       </div>
+
 
 
       <div class="product-details">
 
-        <p class="product-category">
-          ${product.category}
-        </p>
+
+        ${
+          product.category
+            ? `
+
+              <p class="product-category">
+
+                ${escapeHTML(product.category)}
+
+              </p>
+
+            `
+            : ""
+        }
 
 
         <h1>
-          ${product.name}
+
+          ${escapeHTML(product.name || "ZUBSTUDIO Piece")}
+
         </h1>
 
 
-        <p class="detail-price">
-          ${money(product.price)}
-        </p>
+        ${
+          product.price !== undefined && product.price !== null
+            ? `
+
+              <p class="detail-price">
+
+                ${money(product.price)}
+
+              </p>
+
+            `
+            : ""
+        }
 
 
-        <p class="detail-description">
-          ${product.description}
-        </p>
+        ${
+          product.code
+            ? `
+
+              <div class="detail-meta-row">
+
+                <span>
+
+                  Product Code
+
+                </span>
 
 
-        <div class="option-label">
+                <span>
 
-          <span>
-            Select Size
-          </span>
+                  ${escapeHTML(product.code)}
 
-          <span>
-            Size Guide
-          </span>
+                </span>
 
-        </div>
+              </div>
+
+            `
+            : ""
+        }
 
 
-        <div class="size-options">
+        ${
+          product.description
+            ? `
 
-          ${product.sizes
-            .map(
-              (size) => `
+              <p class="detail-description">
+
+                ${escapeHTML(product.description).replaceAll("\n", "<br>")}
+
+              </p>
+
+            `
+            : ""
+        }
+
+
+        ${
+          sizes.length
+            ? `
+
+
+              <div class="option-label">
+
+                <span>
+
+                  Select Size
+
+                </span>
+
+              </div>
+
+
+              <div class="size-options">
+
+
+                ${sizes
+                  .map(
+                    (size) => `
+
+
+                      <button
+
+                        class="size-button"
+
+                        data-size="${escapeHTML(size)}"
+
+                        onclick="
+                          chooseSize(
+                            '${escapeHTML(size)}',
+                            this
+                          )
+                        "
+                      >
+
+                        ${escapeHTML(size)}
+
+                      </button>
+
+
+                    `,
+                  )
+                  .join("")}
+
+
+              </div>
+
+
+            `
+            : ""
+        }
+
+
+        ${
+          soldOut
+            ? `
 
               <button
-                class="size-button"
-                data-size="${size}"
+                class="product-add"
+                type="button"
+                disabled
+              >
+
+                Sold Out
+
+              </button>
+
+            `
+            : `
+
+              <button
+
+                class="product-add"
+
+                type="button"
+
                 onclick="
-                  chooseSize(
-                    '${size}',
-                    this
+                  addToCart(
+                    '${productId(product)}'
                   )
                 "
               >
-                ${size}
+
+                Add to Bag
+
+                ${
+                  product.price !== undefined && product.price !== null
+                    ? `— ${money(product.price)}`
+                    : ""
+                }
+
               </button>
 
-            `,
-            )
-            .join("")}
-
-        </div>
-
-
-        <button
-          class="product-add"
-          onclick="
-            addToCart('${product.id}')
-          "
-        >
-          Add to Bag — ${money(product.price)}
-        </button>
+            `
+        }
 
 
         <div class="detail-meta">
 
-          <div class="detail-meta-row">
 
-            <span>Color</span>
+          ${
+            product.color
+              ? `
 
-            <span>
-              ${product.color}
-            </span>
-
-          </div>
+                <div class="detail-meta-row">
 
 
-          <div class="detail-meta-row">
+                  <span>
 
-            <span>Availability</span>
+                    Color
 
-            <span>
-              ${product.stock > 0 ? "In Stock" : "Sold Out"}
-            </span>
-
-          </div>
+                  </span>
 
 
-          <div class="detail-meta-row">
+                  <span>
 
-            <span>Shipping</span>
+                    ${escapeHTML(product.color)}
 
-            <span>
-              Calculated at checkout
-            </span>
+                  </span>
 
-          </div>
+
+                </div>
+
+              `
+              : ""
+          }
+
+
+          ${
+            product.status
+              ? `
+
+                <div class="detail-meta-row">
+
+
+                  <span>
+
+                    Availability
+
+                  </span>
+
+
+                  <span>
+
+                    ${soldOut ? "Sold Out" : "Available"}
+
+                  </span>
+
+
+                </div>
+
+              `
+              : ""
+          }
+
 
         </div>
 
+
       </div>
+
 
     </section>
 
@@ -788,6 +1563,10 @@ function productPage(id) {
 
   `;
 }
+
+/* =========================================================
+   CHOOSE SIZE
+========================================================= */
 
 function chooseSize(size, button) {
   selectedSize = size;
@@ -800,36 +1579,54 @@ function chooseSize(size, button) {
 }
 
 /* =========================================================
-   CART ACTIONS
+   ADD TO CART
+
+   SIZE IS ONLY REQUIRED
+   IF BACKEND HAS SIZES.
 ========================================================= */
 
-function addToCart(productId) {
-  const product = findProduct(productId);
+function addToCart(productIdValue) {
+  const product = findProduct(productIdValue);
 
   if (!product) {
     return;
   }
 
-  if (!selectedSize) {
+  if (isSoldOut(product)) {
+    showToast("This piece is sold out.");
+
+    return;
+  }
+
+  const hasSizes = productHasSizes(product);
+
+  if (hasSizes && !selectedSize) {
     showToast("Please select your size.");
 
     return;
   }
 
+  const cartSize = hasSizes ? selectedSize : null;
+
   const existing = cart.find(
-    (item) => item.productId === productId && item.size === selectedSize,
+    (item) =>
+      item.productId === productIdValue && (item.size || null) === cartSize,
   );
 
   if (existing) {
     existing.quantity += 1;
   } else {
-    cart.push({
-      productId,
-
-      size: selectedSize,
+    const cartItem = {
+      productId: productIdValue,
 
       quantity: 1,
-    });
+    };
+
+    if (cartSize) {
+      cartItem.size = cartSize;
+    }
+
+    cart.push(cartItem);
   }
 
   saveCart();
@@ -837,8 +1634,12 @@ function addToCart(productId) {
   showToast(`${product.name} added to your bag.`);
 }
 
-function quickAdd(productId) {
-  window.location.hash = `#/product/${productId}`;
+/* =========================================================
+   QUICK ADD
+========================================================= */
+
+function quickAdd(productIdValue) {
+  window.location.hash = `#/product/${productIdValue}`;
 }
 
 /* =========================================================
@@ -848,149 +1649,242 @@ function quickAdd(productId) {
 function cartPage() {
   if (cart.length === 0) {
     return `
+
       <section class="empty-cart">
 
-        <i class="bx bx-shopping-bag"></i>
 
-        <h2>Your bag is empty</h2>
+        <i
+          class="bx bx-shopping-bag"
+        ></i>
+
+
+        <h2>
+
+          Your bag is empty
+
+        </h2>
+
 
         <p>
-          Discover the latest ZUBSTUDIO collection.
+
+          Discover the latest
+          ZUBSTUDIO collection.
+
         </p>
+
 
         <a
           href="#/shop"
           class="btn btn-dark"
         >
+
           Continue Shopping
+
         </a>
+
 
       </section>
 
+
       ${footer()}
+
     `;
   }
 
   let subtotal = 0;
 
   const cartItems = cart
-    .map((item) => {
+    .map((item, index) => {
       const product = findProduct(item.productId);
 
       if (!product) {
         return "";
       }
 
-      const itemTotal = product.price * item.quantity;
+      const itemTotal = Number(product.price || 0) * Number(item.quantity || 1);
 
       subtotal += itemTotal;
 
+      const image = getProductImageURL(product) || "./favicon.jpeg";
+
       return `
 
-      <div class="cart-item">
 
-        <a
-          href="#/product/${product.id}"
-        >
-          <img
-            class="cart-item-image"
-            src="${product.images[0]}"
-            alt="${product.name}"
-          >
-        </a>
+            <div class="cart-item">
 
 
-        <div>
-
-          <h3>
-            ${product.name}
-          </h3>
-
-          <p class="cart-item-meta">
-            Size: ${item.size}
-            &nbsp;•&nbsp;
-            ${product.color || ""}
-          </p>
+              <a
+                href="#/product/${productId(product)}"
+              >
 
 
-          <div class="quantity">
+                <img
 
-            <button
-              type="button"
-              onclick="changeQuantity(
-                '${item.productId}',
-                '${item.size}',
-                -1
-              )"
-              aria-label="Decrease quantity"
-            >
-              −
-            </button>
+                  class="cart-item-image"
+
+                  src="${escapeHTML(image)}"
+
+                  alt="${escapeHTML(product.name || "ZUBSTUDIO product")}"
+
+                >
 
 
-            <span>
-              ${item.quantity}
-            </span>
+              </a>
 
 
-            <button
-              type="button"
-              onclick="changeQuantity(
-                '${item.productId}',
-                '${item.size}',
-                1
-              )"
-              aria-label="Increase quantity"
-            >
-              +
-            </button>
 
-          </div>
+              <div>
 
 
-          <br>
+                <h3>
+
+                  ${escapeHTML(product.name || "ZUBSTUDIO Piece")}
+
+                </h3>
 
 
-          <button
-            type="button"
-            class="remove-button"
-            onclick="removeCartItem(
-              '${item.productId}',
-              '${item.size}'
-            )"
-          >
-            Remove
-          </button>
+                ${
+                  item.size || product.color || product.code
+                    ? `
 
-        </div>
+                      <p class="cart-item-meta">
 
 
-        <div class="cart-item-price">
-          ${money(itemTotal)}
-        </div>
+                        ${item.size ? `Size: ${escapeHTML(item.size)}` : ""}
 
-      </div>
 
-    `;
+                        ${item.size && product.color ? "&nbsp;•&nbsp;" : ""}
+
+
+                        ${product.color ? escapeHTML(product.color) : ""}
+
+
+                        ${
+                          product.code
+                            ? `
+
+                              <br>
+
+                              Code:
+                              ${escapeHTML(product.code)}
+
+                            `
+                            : ""
+                        }
+
+
+                      </p>
+
+                    `
+                    : ""
+                }
+
+
+                <div class="quantity">
+
+
+                  <button
+
+                    type="button"
+
+                    onclick="
+                      changeQuantity(
+                        ${index},
+                        -1
+                      )
+                    "
+                  >
+
+                    −
+
+                  </button>
+
+
+                  <span>
+
+                    ${item.quantity}
+
+                  </span>
+
+
+                  <button
+
+                    type="button"
+
+                    onclick="
+                      changeQuantity(
+                        ${index},
+                        1
+                      )
+                    "
+                  >
+
+                    +
+
+                  </button>
+
+
+                </div>
+
+
+                <br>
+
+
+                <button
+
+                  type="button"
+
+                  class="remove-button"
+
+                  onclick="
+                    removeCartItem(
+                      ${index}
+                    )
+                  "
+                >
+
+                  Remove
+
+                </button>
+
+
+              </div>
+
+
+
+              <div class="cart-item-price">
+
+                ${money(itemTotal)}
+
+              </div>
+
+
+            </div>
+
+
+          `;
     })
     .join("");
 
   return `
 
+
     <section class="cart-page">
 
-      <h1>Your Bag</h1>
+
+      <h1>
+
+        Your Bag
+
+      </h1>
 
 
       <div class="checkout-layout">
 
 
-        <!-- =========================================
-             LEFT SIDE
-             CART + CUSTOMER DETAILS
-        ========================================== -->
 
         <div>
+
 
           <div class="cart-items">
 
@@ -999,136 +1893,201 @@ function cartPage() {
           </div>
 
 
-          <!-- =====================================
-               DELIVERY DETAILS
-          ====================================== -->
 
           <div class="delivery-section">
 
+
             <p class="checkout-eyebrow">
+
               Checkout
+
             </p>
+
 
             <h2>
+
               Delivery Details
+
             </h2>
 
+
             <p class="delivery-intro">
+
               Enter your delivery information below.
+
               Your complete order will then be sent
+
               to ZUBSTUDIO through WhatsApp.
+
             </p>
+
 
 
             <div class="checkout-form">
 
 
-              <!-- NAME -->
 
               <div class="form-group form-full">
+
 
                 <label for="customerName">
+
                   Full Name
+
                 </label>
 
+
                 <input
+
                   id="customerName"
+
                   type="text"
+
                   placeholder="Your full name"
+
                   autocomplete="name"
+
                 >
+
 
               </div>
 
 
-              <!-- PHONE -->
 
               <div class="form-group form-full">
+
 
                 <label for="customerPhone">
+
                   Phone Number
+
                 </label>
 
+
                 <input
+
                   id="customerPhone"
+
                   type="tel"
+
                   placeholder="Your phone number"
+
                   autocomplete="tel"
+
                 >
+
 
               </div>
 
 
-              <!-- ADDRESS -->
 
               <div class="form-group form-full">
+
 
                 <label for="customerAddress">
+
                   Delivery Address
+
                 </label>
+
 
                 <textarea
+
                   id="customerAddress"
+
                   placeholder="House / apartment, street, area"
+
                   autocomplete="street-address"
+
                   rows="3"
+
                 ></textarea>
 
+
               </div>
 
 
-              <!-- CITY -->
 
               <div class="form-group">
+
 
                 <label for="customerCity">
+
                   City
+
                 </label>
 
+
                 <input
+
                   id="customerCity"
+
                   type="text"
+
                   placeholder="City"
+
                   autocomplete="address-level2"
+
                 >
+
 
               </div>
 
 
-              <!-- STATE -->
 
               <div class="form-group">
 
+
                 <label for="customerState">
+
                   State
+
                 </label>
 
+
                 <input
+
                   id="customerState"
+
                   type="text"
+
                   placeholder="State"
+
                   autocomplete="address-level1"
+
                 >
+
 
               </div>
 
 
-              <!-- PIN CODE -->
 
               <div class="form-group form-full">
 
+
                 <label for="customerPin">
+
                   PIN Code
+
                 </label>
 
+
                 <input
+
                   id="customerPin"
+
                   type="text"
+
                   inputmode="numeric"
+
                   maxlength="6"
+
                   placeholder="6-digit PIN code"
+
                   autocomplete="postal-code"
+
                 >
+
 
               </div>
 
@@ -1137,96 +2096,147 @@ function cartPage() {
 
 
             <div
+
               id="checkoutError"
+
               class="checkout-error"
+
             ></div>
 
+
           </div>
+
 
         </div>
 
 
 
-        <!-- =========================================
-             RIGHT SIDE
-             ORDER SUMMARY
-        ========================================== -->
-
         <aside class="cart-summary">
 
+
           <h2>
+
             Order Summary
+
           </h2>
 
 
+
           <div class="summary-row">
 
+
             <span>
+
               Subtotal
+
             </span>
+
 
             <span>
+
               ${money(subtotal)}
+
             </span>
 
+
           </div>
+
 
 
           <div class="summary-row">
 
+
             <span>
+
               Delivery
+
             </span>
 
+
             <span>
+
               Confirm on WhatsApp
+
             </span>
+
 
           </div>
 
 
-          <div class="summary-row summary-total">
+
+          <div
+            class="
+              summary-row
+              summary-total
+            "
+          >
+
 
             <span>
+
               Total
+
             </span>
+
 
             <span>
+
               ${money(subtotal)}
+
             </span>
 
+
           </div>
+
 
 
           <p class="cart-note">
+
             Delivery charges and payment details
+
             will be confirmed by ZUBSTUDIO.
+
           </p>
 
 
+
           <button
+
             type="button"
+
             class="whatsapp-order-button"
-            onclick="startCheckout()"
+
+            onclick="
+              startCheckout()
+            "
           >
 
-            <i class="bx bxl-whatsapp"></i>
+
+            <i
+              class="bx bxl-whatsapp"
+            ></i>
+
 
             Place Order on WhatsApp
+
 
           </button>
 
 
           <p class="whatsapp-note">
-            Your order and delivery details will
-            be prepared automatically. You only
-            need to send the message in WhatsApp.
+
+            Your order and delivery details
+
+            will be prepared automatically.
+
           </p>
+
 
         </aside>
 
 
       </div>
+
 
     </section>
 
@@ -1235,6 +2245,10 @@ function cartPage() {
 
   `;
 }
+
+/* =========================================================
+   CART ACTIONS
+========================================================= */
 
 function changeQuantity(index, amount) {
   if (!cart[index]) {
@@ -1261,49 +2275,15 @@ function removeCartItem(index) {
 }
 
 /* =========================================================
-   CHECKOUT PLACEHOLDER
-========================================================= */
-
-/* =========================================================
-   GET PUBLIC PRODUCT IMAGE URL
-========================================================= */
-
-function getProductImageURL(product) {
-  const image = product.images?.[0];
-
-  if (!image) {
-    return "";
-  }
-
-  /* API / CLOUDINARY / FULL URL */
-
-  if (image.startsWith("http://") || image.startsWith("https://")) {
-    return image;
-  }
-
-  /* LOCAL ASSETS IMAGE */
-
-  return new URL(image, window.location.href).href;
-}
-
-/* =========================================================
    WHATSAPP CHECKOUT
 ========================================================= */
 
 function startCheckout() {
-  /* -------------------------------------------------------
-     MAKE SURE CART IS NOT EMPTY
-  ------------------------------------------------------- */
-
   if (cart.length === 0) {
     showToast("Your bag is empty.");
 
     return;
   }
-
-  /* -------------------------------------------------------
-     GET CUSTOMER DETAILS
-  ------------------------------------------------------- */
 
   const name = document.getElementById("customerName")?.value.trim();
 
@@ -1319,10 +2299,6 @@ function startCheckout() {
 
   const errorBox = document.getElementById("checkoutError");
 
-  /* -------------------------------------------------------
-     VALIDATE
-  ------------------------------------------------------- */
-
   if (!name || !phone || !address || !city || !state || !pin) {
     if (errorBox) {
       errorBox.textContent =
@@ -1332,8 +2308,6 @@ function startCheckout() {
     return;
   }
 
-  /* PIN VALIDATION */
-
   if (!/^\d{6}$/.test(pin)) {
     if (errorBox) {
       errorBox.textContent = "Please enter a valid 6-digit PIN code.";
@@ -1341,8 +2315,6 @@ function startCheckout() {
 
     return;
   }
-
-  /* PHONE VALIDATION */
 
   const cleanPhone = phone.replace(/\D/g, "");
 
@@ -1357,25 +2329,6 @@ function startCheckout() {
   if (errorBox) {
     errorBox.textContent = "";
   }
-
-  /* =======================================================
-     ZUBSTUDIO WHATSAPP NUMBER
-
-     CHANGE THIS TO THE REAL NUMBER.
-
-     Example:
-     919876543210
-
-     NO +
-     NO SPACES
-     NO DASHES
-  ======================================================= */
-
-  const whatsappNumber = "919535611778";
-
-  /* -------------------------------------------------------
-     CREATE ORDER
-  ------------------------------------------------------- */
 
   let message = `*NEW ZUBSTUDIO ORDER*
 
@@ -1392,25 +2345,48 @@ function startCheckout() {
       return;
     }
 
-    const itemTotal = product.price * item.quantity;
+    const itemTotal = Number(product.price || 0) * Number(item.quantity || 1);
 
     total += itemTotal;
 
     const imageURL = getProductImageURL(product);
 
     message += `*${orderNumber}. ${product.name}*
-
-Size: ${item.size}
-Color: ${product.color || "-"}
-Quantity: ${item.quantity}
-Price: ${money(itemTotal)}
 `;
 
     /*
-      Product image link.
-      Works with /assets now and
-      full API image URLs later.
-    */
+        ONLY SEND CODE
+        IF IT EXISTS
+      */
+
+    if (product.code) {
+      message += `Code: ${product.code}
+`;
+    }
+
+    /*
+        ONLY SEND SIZE
+        IF IT EXISTS
+      */
+
+    if (item.size) {
+      message += `Size: ${item.size}
+`;
+    }
+
+    /*
+        ONLY SEND COLOR
+        IF IT EXISTS
+      */
+
+    if (product.color) {
+      message += `Color: ${product.color}
+`;
+    }
+
+    message += `Quantity: ${item.quantity}
+Price: ${money(itemTotal)}
+`;
 
     if (imageURL) {
       message += `
@@ -1425,21 +2401,11 @@ ${imageURL}
     orderNumber++;
   });
 
-  /* -------------------------------------------------------
-     TOTAL
-  ------------------------------------------------------- */
-
   message += `──────────────────
 *TOTAL: ${money(total)}*
 ──────────────────
 
-`;
-
-  /* -------------------------------------------------------
-     CUSTOMER DETAILS
-  ------------------------------------------------------- */
-
-  message += `*DELIVERY DETAILS*
+*DELIVERY DETAILS*
 
 Name: ${name}
 Phone: ${phone}
@@ -1453,13 +2419,17 @@ PIN Code: ${pin}
 
 Please confirm availability, delivery charges and payment details.`;
 
-  /* -------------------------------------------------------
-     OPEN WHATSAPP
-  ------------------------------------------------------- */
+  const whatsappURL = `https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(
+    message,
+  )}`;
 
-  const whatsappURL = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+  window.open(
+    whatsappURL,
 
-  window.open(whatsappURL, "_blank", "noopener,noreferrer");
+    "_blank",
+
+    "noopener,noreferrer",
+  );
 }
 
 /* =========================================================
@@ -1469,32 +2439,44 @@ Please confirm availability, delivery charges and payment details.`;
 function aboutPage() {
   return `
 
+
     <section class="about-hero">
+
 
       <div>
 
+
         <p class="section-eyebrow">
+
           Our Story
+
         </p>
 
 
         <h1>
+
           Designed to be remembered.
+
         </h1>
 
 
         <p>
 
           ZUBSTUDIO is built around a simple idea:
+
           clothing can feel expressive without being excessive.
 
           Our collections celebrate considered silhouettes,
+
           refined details and pieces designed to move
+
           effortlessly through the moments that matter.
 
         </p>
 
+
       </div>
+
 
     </section>
 
@@ -1509,31 +2491,39 @@ function aboutPage() {
 ========================================================= */
 
 function openSearch() {
-  searchOverlay.classList.add("open");
+  searchOverlay?.classList.add("open");
 
-  searchOverlay.setAttribute("aria-hidden", "false");
+  searchOverlay?.setAttribute("aria-hidden", "false");
 
   document.body.classList.add("no-scroll");
 
-  setTimeout(() => {
-    searchInput.focus();
-  }, 200);
+  setTimeout(
+    () => {
+      searchInput?.focus();
+    },
+
+    200,
+  );
 }
 
 function closeSearch() {
-  searchOverlay.classList.remove("open");
+  searchOverlay?.classList.remove("open");
 
-  searchOverlay.setAttribute("aria-hidden", "true");
+  searchOverlay?.setAttribute("aria-hidden", "true");
 
   document.body.classList.remove("no-scroll");
 
-  searchInput.value = "";
+  if (searchInput) {
+    searchInput.value = "";
+  }
 
-  searchResults.innerHTML = "";
+  if (searchResults) {
+    searchResults.innerHTML = "";
+  }
 }
 
 function runSearch() {
-  const query = searchInput.value.trim().toLowerCase();
+  const query = searchInput?.value.trim().toLowerCase() || "";
 
   if (!query) {
     searchResults.innerHTML = "";
@@ -1542,18 +2532,33 @@ function runSearch() {
   }
 
   const matches = products.filter((product) => {
-    return (
-      product.name.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query) ||
-      product.color.toLowerCase().includes(query)
-    );
+    const searchable = [
+      product.name,
+
+      product.category,
+
+      product.color,
+
+      product.code,
+
+      product.description,
+    ]
+      .filter(Boolean)
+
+      .join(" ")
+
+      .toLowerCase();
+
+    return searchable.includes(query);
   });
 
   if (!matches.length) {
     searchResults.innerHTML = `
 
       <div class="search-result">
+
         No pieces found.
+
       </div>
 
     `;
@@ -1565,459 +2570,565 @@ function runSearch() {
     .map(
       (product) => `
 
-        <a
-          class="search-result"
-          href="#/product/${product.id}"
-          onclick="closeSearch()"
-        >
 
-          ${product.name}
-          — ${money(product.price)}
+          <a
 
-        </a>
+            class="search-result"
 
-      `,
+            href="#/product/${productId(product)}"
+
+            onclick="
+              closeSearch()
+            "
+          >
+
+
+            ${escapeHTML(product.name)}
+
+
+            ${
+              product.price !== undefined && product.price !== null
+                ? `— ${money(product.price)}`
+                : ""
+            }
+
+
+          </a>
+
+
+        `,
     )
     .join("");
 }
-
-/* =========================================================
-   ROUTER
-========================================================= */
-
-function getRoute() {
-  const hash = window.location.hash || "#/home";
-
-  return hash.replace("#/", "").split("/");
-}
-
-function render() {
-  const [page, parameter] = getRoute();
-
-  mobileMenu.classList.remove("open");
-
-  switch (page) {
-    case "shop":
-      app.innerHTML = shopPage();
-      break;
-
-    case "product":
-      app.innerHTML = productPage(parameter);
-      break;
-
-    case "cart":
-      app.innerHTML = cartPage();
-      break;
-
-    case "about":
-      app.innerHTML = aboutPage();
-      break;
-
-    /* ==========================================
-       ADMIN
-    ========================================== */
-
-    case "admin":
-      app.innerHTML = adminPage();
-      break;
-
-    case "home":
-
-    default:
-      app.innerHTML = homePage();
-      break;
-  }
-
-  updateCartCount();
-
-  requestAnimationFrame(() => {
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "instant",
-    });
-  });
-}
-
-/* =========================================================
-   EVENTS
-========================================================= */
-
-mobileMenuToggle.addEventListener("click", () => {
-  mobileMenu.classList.toggle("open");
-});
-
-document.querySelector(".search-toggle").addEventListener("click", openSearch);
-
-document.getElementById("search-close").addEventListener("click", closeSearch);
-
-searchOverlay.addEventListener("click", (event) => {
-  if (event.target === searchOverlay) {
-    closeSearch();
-  }
-});
-
-searchInput.addEventListener("input", runSearch);
-
-window.addEventListener("hashchange", render);
-
-/* =========================================================
-   INITIALIZE
-========================================================= */
-
-updateCartCount();
-
-render();
-
-/* =========================================================
-   ZUBSTUDIO ADMIN
-   FRONTEND ONLY FOR NOW
-
-   Later:
-   Publish -> /api/products -> MongoDB
-   Images -> Cloudinary -> URLs stored in MongoDB
-========================================================= */
-
-let adminImages = [];
 
 /* =========================================================
    ADMIN PAGE
 ========================================================= */
 
 function adminPage() {
+  /*
+    Pull category suggestions
+    from MongoDB.
+  */
+
+  const existingCategories = getCategories().filter(
+    (category) => category !== "All",
+  );
+
   return `
+
+
     <section class="admin-page">
+
 
       <div class="admin-header">
 
+
         <div>
+
+
           <p class="admin-eyebrow">
+
             ZUBSTUDIO
+
           </p>
+
 
           <h1>
+
             Product Manager
+
           </h1>
 
+
           <p class="admin-subtitle">
-            Add new products to your online collection.
+
+            Add new pieces to your online collection.
+
           </p>
+
+
         </div>
 
+
         <a
+
           href="#/shop"
+
           class="admin-view-store"
         >
+
           View Store
-          <i class="bx bx-right-arrow-alt"></i>
+
+          <i
+            class="bx bx-right-arrow-alt"
+          ></i>
+
         </a>
 
+
       </div>
+
 
 
       <div class="admin-layout">
 
 
-        <!-- =========================================
-             LEFT SIDE
-             PRODUCT FORM
-        ========================================== -->
 
         <div class="admin-card">
 
+
           <div class="admin-card-heading">
 
+
             <span class="admin-step">
+
               01
+
             </span>
 
+
             <div>
+
+
               <h2>
+
                 Product Information
+
               </h2>
 
+
               <p>
-                Enter the details customers will see.
+
+                Enter the information customers will see.
+
               </p>
+
+
             </div>
 
+
           </div>
+
 
 
           <div class="admin-form">
 
 
-            <!-- PRODUCT NAME -->
 
             <div class="admin-field admin-full">
 
+
               <label for="adminProductName">
-                Product Name
+
+                Product / Collection Name *
+
               </label>
 
+
               <input
+
                 id="adminProductName"
+
                 type="text"
+
                 placeholder="e.g. Falah Premium Pure Cotton Collection"
+
               >
+
 
             </div>
 
 
-            <!-- CODE -->
 
             <div class="admin-field">
+
 
               <label for="adminProductCode">
+
                 Product Code
+
+                <small>
+                  (optional)
+                </small>
+
               </label>
 
+
               <input
+
                 id="adminProductCode"
+
                 type="text"
+
                 placeholder="e.g. Nop37"
+
               >
+
 
             </div>
 
 
-            <!-- PRICE -->
 
             <div class="admin-field">
 
+
               <label for="adminProductPrice">
-                Price
+
+                Price *
+
               </label>
+
 
               <div class="admin-price-input">
 
+
                 <span>
+
                   ₹
+
                 </span>
 
+
                 <input
+
                   id="adminProductPrice"
+
                   type="number"
+
                   min="0"
+
                   placeholder="1599"
+
                 >
+
 
               </div>
 
+
             </div>
+
 
 
             <!-- CATEGORY -->
 
-            <div class="admin-field">
-
-              <label for="adminProductCategory">
-                Category
-              </label>
-
-              <select id="adminProductCategory">
-
-                <option value="Sets">
-                  Sets
-                </option>
-
-                <option value="Dresses">
-                  Dresses
-                </option>
-
-                <option value="Kurtas">
-                  Kurtas
-                </option>
-
-                <option value="Abayas">
-                  Abayas
-                </option>
-
-                <option value="New Arrivals">
-                  New Arrivals
-                </option>
-
-                <option value="Other">
-                  Other
-                </option>
-
-              </select>
-
-            </div>
-
-
-            <!-- AVAILABILITY -->
-
-            <div class="admin-field">
-
-              <label for="adminProductStatus">
-                Availability
-              </label>
-
-              <select id="adminProductStatus">
-
-                <option value="available">
-                  Available
-                </option>
-
-                <option value="sold-out">
-                  Sold Out
-                </option>
-
-              </select>
-
-            </div>
-
-
-            <!-- DESCRIPTION -->
 
             <div class="admin-field admin-full">
 
-              <label for="adminProductDescription">
-                Product Description
+
+              <label for="adminProductCategory">
+
+                Category
+
               </label>
 
-              <textarea
-                id="adminProductDescription"
-                rows="7"
-                placeholder="Top heavy Cotton embroidered&#10;Bottom Cotton&#10;Dupatta Cotton Dup Embroidered"
-              ></textarea>
+
+              <input
+
+                id="adminProductCategory"
+
+                type="text"
+
+                list="adminCategorySuggestions"
+
+                placeholder="e.g. Sets, Kurtas, Sarees"
+
+              >
+
+
+              <datalist
+                id="adminCategorySuggestions"
+              >
+
+
+                ${existingCategories
+                  .map(
+                    (category) => `
+
+                      <option
+                        value="${escapeHTML(category)}"
+                      ></option>
+
+                    `,
+                  )
+                  .join("")}
+
+
+                <!-- STARTER SUGGESTIONS -->
+
+
+                <option value="Sets"></option>
+
+                <option value="Kurtas"></option>
+
+                <option value="Dresses"></option>
+
+                <option value="Abayas"></option>
+
+                <option value="Sarees"></option>
+
+                <option value="Churidars"></option>
+
+
+              </datalist>
+
 
               <p class="admin-field-help">
-                You can paste the same description you normally
-                send on WhatsApp.
+
+                Choose an existing category
+
+                or type a new one.
+
               </p>
+
+
+            </div>
+
+
+
+            <div class="admin-field admin-full">
+
+
+              <label for="adminProductDescription">
+
+                Product Description
+
+                <small>
+                  (optional)
+                </small>
+
+              </label>
+
+
+              <textarea
+
+                id="adminProductDescription"
+
+                rows="7"
+
+                placeholder="Top heavy Cotton embroidered&#10;Bottom Cotton&#10;Dupatta Cotton Dup Embroidered"
+
+              ></textarea>
+
+
+              <p class="admin-field-help">
+
+                Paste the description you normally
+
+                send on WhatsApp.
+
+              </p>
+
 
             </div>
 
 
           </div>
+
 
         </div>
 
 
 
-        <!-- =========================================
-             IMAGE UPLOAD
-        ========================================== -->
+        <!-- PHOTOS -->
+
 
         <div class="admin-card">
 
+
           <div class="admin-card-heading">
 
+
             <span class="admin-step">
+
               02
+
             </span>
+
 
             <div>
 
+
               <h2>
-                Product Photos
+
+                Clothing Photos
+
               </h2>
 
+
               <p>
-                Upload multiple photos of the outfit.
+
+                Each selected photo will become
+
+                a separate product using the
+
+                information above.
+
               </p>
 
+
             </div>
+
 
           </div>
 
 
+
           <label
+
             for="adminImageUpload"
+
             class="admin-upload-box"
           >
 
-            <i class="bx bx-image-add"></i>
+
+            <i
+              class="bx bx-image-add"
+            ></i>
+
 
             <strong>
-              Add Product Photos
+
+              Add Clothing Photos
+
             </strong>
 
+
             <span>
-              Choose images from your phone or computer
+
+              Select all designs in this collection.
+
             </span>
 
+
             <span class="admin-upload-button">
+
               Select Photos
+
             </span>
+
 
           </label>
 
 
+
           <input
+
             id="adminImageUpload"
+
             class="admin-file-input"
+
             type="file"
+
             accept="image/*"
+
             multiple
-            onchange="handleAdminImages(event)"
+
+            onchange="
+              handleAdminImages(
+                event
+              )
+            "
+
           >
 
 
+
           <div
+
             id="adminImagePreview"
+
             class="admin-image-preview"
+
           ></div>
+
 
         </div>
 
 
 
-        <!-- =========================================
-             PUBLISH
-        ========================================== -->
+        <!-- PUBLISH -->
+
 
         <div class="admin-publish-card">
 
+
           <div>
 
+
             <p class="admin-publish-label">
+
               Ready to publish?
+
             </p>
+
 
             <h2>
-              Add this product to ZUBSTUDIO
+
+              Add to ZUBSTUDIO
+
             </h2>
 
+
             <p>
-              Once the backend is connected, publishing will
-              immediately make this product available in the shop.
+
+              Each selected clothing photo
+
+              will be published as its own piece.
+
             </p>
+
 
           </div>
 
 
+
           <button
+
             type="button"
+
             class="admin-publish-button"
-            onclick="publishAdminProduct()"
+
+            onclick="
+              publishAdminProduct()
+            "
           >
 
-            Publish Product
 
-            <i class="bx bx-right-arrow-alt"></i>
+            Publish Products
+
+
+            <i
+              class="bx bx-right-arrow-alt"
+            ></i>
+
 
           </button>
 
 
+
           <div
+
             id="adminMessage"
+
             class="admin-message"
+
           ></div>
+
 
         </div>
 
 
       </div>
 
+
     </section>
+
   `;
 }
 
 /* =========================================================
-   IMAGE PREVIEW
+   ADMIN IMAGE HANDLER
 ========================================================= */
 
 function handleAdminImages(event) {
@@ -2036,7 +3147,8 @@ function handleAdminImages(event) {
 
     reader.onload = function (e) {
       adminImages.push({
-        file: file,
+        file,
+
         preview: e.target.result,
       });
 
@@ -2048,7 +3160,7 @@ function handleAdminImages(event) {
 }
 
 /* =========================================================
-   RENDER IMAGE PREVIEWS
+   ADMIN IMAGE PREVIEW
 ========================================================= */
 
 function renderAdminImages() {
@@ -2059,44 +3171,61 @@ function renderAdminImages() {
   }
 
   container.innerHTML = adminImages
-    .map((image, index) => {
-      return `
+    .map(
+      (image, index) => `
+
 
           <div class="admin-preview-image">
 
+
             <img
+
               src="${image.preview}"
-              alt="Product preview"
+
+              alt="Clothing preview"
+
             >
 
-            ${
-              index === 0
-                ? `
-                  <span class="admin-cover-label">
-                    Cover
-                  </span>
-                `
-                : ""
-            }
+
+            <span class="admin-cover-label">
+
+              Piece ${index + 1}
+
+            </span>
 
 
             <button
+
               type="button"
-              onclick="removeAdminImage(${index})"
+
+              onclick="
+                removeAdminImage(
+                  ${index}
+                )
+              "
+
               aria-label="Remove image"
             >
-              <i class="bx bx-x"></i>
+
+
+              <i
+                class="bx bx-x"
+              ></i>
+
+
             </button>
+
 
           </div>
 
-        `;
-    })
+
+        `,
+    )
     .join("");
 }
 
 /* =========================================================
-   REMOVE UPLOADED IMAGE
+   REMOVE ADMIN IMAGE
 ========================================================= */
 
 function removeAdminImage(index) {
@@ -2106,20 +3235,27 @@ function removeAdminImage(index) {
 }
 
 /* =========================================================
-   PUBLISH PRODUCT
-   FRONTEND TEST FOR NOW
+   PUBLISH PRODUCTS
+
+   IMPORTANT:
+
+   1 PHOTO = 1 PRODUCT
+   5 PHOTOS = 5 PRODUCTS
+
+   SAME CODE IS ALLOWED.
+   NO CODE IS ALSO ALLOWED.
 ========================================================= */
 
-function publishAdminProduct() {
+async function publishAdminProduct() {
   const name = document.getElementById("adminProductName")?.value.trim();
 
   const code = document.getElementById("adminProductCode")?.value.trim();
 
   const price = document.getElementById("adminProductPrice")?.value;
 
-  const category = document.getElementById("adminProductCategory")?.value;
-
-  const status = document.getElementById("adminProductStatus")?.value;
+  const category = document
+    .getElementById("adminProductCategory")
+    ?.value.trim();
 
   const description = document
     .getElementById("adminProductDescription")
@@ -2127,61 +3263,300 @@ function publishAdminProduct() {
 
   const message = document.getElementById("adminMessage");
 
-  if (!name || !code || !price || !description) {
+  const button = document.querySelector(".admin-publish-button");
+
+  /* VALIDATION */
+
+  if (!name || !price) {
     message.innerHTML = `
-        <span class="admin-error">
-          Please complete the product name,
-          code, price and description.
-        </span>
-      `;
+
+      <span class="admin-error">
+
+        Please enter the product name and price.
+
+      </span>
+
+    `;
 
     return;
   }
 
   if (adminImages.length === 0) {
     message.innerHTML = `
-        <span class="admin-error">
-          Please add at least one product photo.
-        </span>
-      `;
+
+      <span class="admin-error">
+
+        Please add at least one clothing photo.
+
+      </span>
+
+    `;
 
     return;
   }
 
-  const product = {
-    name: name,
+  button.disabled = true;
 
-    code: code,
+  button.innerHTML = `
 
-    price: Number(price),
+    Publishing...
 
-    category: category,
-
-    status: status,
-
-    description: description,
-
-    images: adminImages.map((image) => image.file.name),
-  };
-
-  /*
-     FRONTEND TEST ONLY.
-
-     Later this is where we'll:
-
-     1. Upload images to Cloudinary
-     2. Receive image URLs
-     3. POST product to /api/products
-     4. Save product to MongoDB
-  */
-
-  console.log("ZUBSTUDIO PRODUCT:", product);
+  `;
 
   message.innerHTML = `
-      <span class="admin-success">
-        ✓ Product is ready.
 
-        Backend connection is the next step.
+    <span>
+
+      Uploading ${adminImages.length}
+
+      ${adminImages.length === 1 ? "piece" : "pieces"}...
+
+    </span>
+
+  `;
+
+  try {
+    let published = 0;
+
+    for (const image of adminImages) {
+      const formData = new FormData();
+
+      /* REQUIRED */
+
+      formData.append("name", name);
+
+      formData.append("price", price);
+
+      /* OPTIONAL */
+
+      if (code) {
+        formData.append("code", code);
+      }
+
+      if (category) {
+        formData.append("category", category);
+      }
+
+      if (description) {
+        formData.append("description", description);
+      }
+
+      /* ONE IMAGE */
+
+      formData.append("images", image.file);
+
+      const response = await fetch(
+        `${CONFIG.api}/products`,
+
+        {
+          method: "POST",
+
+          body: formData,
+        },
+      );
+
+      let result = {};
+
+      try {
+        result = await response.json();
+      } catch {
+        result = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result.message || `Unable to publish piece ${published + 1}.`,
+        );
+      }
+
+      published++;
+    }
+
+    /* SUCCESS */
+
+    message.innerHTML = `
+
+      <span class="admin-success">
+
+        ✓ ${published}
+
+        ${published === 1 ? "product" : "products"}
+
+        published successfully.
+
       </span>
+
     `;
+
+    /* CLEAR FORM */
+
+    document.getElementById("adminProductName").value = "";
+
+    document.getElementById("adminProductCode").value = "";
+
+    document.getElementById("adminProductPrice").value = "";
+
+    document.getElementById("adminProductCategory").value = "";
+
+    document.getElementById("adminProductDescription").value = "";
+
+    document.getElementById("adminImageUpload").value = "";
+
+    adminImages = [];
+
+    renderAdminImages();
+
+    /*
+      RELOAD PRODUCTS FROM MONGODB.
+
+      The newly uploaded products
+      immediately become the newest
+      products on the homepage.
+    */
+
+    await loadProducts(true);
+  } catch (error) {
+    console.error("Publish error:", error);
+
+    message.innerHTML = `
+
+      <span class="admin-error">
+
+        ${escapeHTML(error.message)}
+
+      </span>
+
+    `;
+  } finally {
+    button.disabled = false;
+
+    button.innerHTML = `
+
+      Publish Products
+
+      <i
+        class="bx bx-right-arrow-alt"
+      ></i>
+
+    `;
+  }
 }
+
+/* =========================================================
+   ROUTER
+========================================================= */
+
+function getRoute() {
+  const hash = window.location.hash || "#/home";
+
+  return hash.replace("#/", "").split("/");
+}
+
+/* =========================================================
+   RENDER
+========================================================= */
+
+async function render() {
+  const [page, parameter] = getRoute();
+
+  mobileMenu?.classList.remove("open");
+
+  /*
+    PRODUCTS ARE NEEDED FOR ADMIN TOO
+    BECAUSE ADMIN CATEGORY SUGGESTIONS
+    COME FROM MONGODB.
+  */
+
+  if (!productsLoaded) {
+    app.innerHTML = loadingPage();
+
+    await loadProducts();
+  }
+
+  if (productLoadError && !productsLoaded) {
+    app.innerHTML = errorPage();
+
+    return;
+  }
+
+  switch (page) {
+    case "shop":
+      app.innerHTML = shopPage();
+
+      break;
+
+    case "new":
+      app.innerHTML = newArrivalsPage();
+
+      break;
+
+    case "product":
+      app.innerHTML = productPage(parameter);
+
+      break;
+
+    case "cart":
+      app.innerHTML = cartPage();
+
+      break;
+
+    case "about":
+      app.innerHTML = aboutPage();
+
+      break;
+
+    case "admin":
+      app.innerHTML = adminPage();
+
+      break;
+
+    case "home":
+
+    default:
+      app.innerHTML = homePage();
+
+      break;
+  }
+
+  updateCartCount();
+
+  requestAnimationFrame(() => {
+    window.scrollTo({
+      top: 0,
+
+      left: 0,
+
+      behavior: "instant",
+    });
+  });
+}
+
+/* =========================================================
+   EVENTS
+========================================================= */
+
+mobileMenuToggle?.addEventListener("click", () => {
+  mobileMenu?.classList.toggle("open");
+});
+
+document.querySelector(".search-toggle")?.addEventListener("click", openSearch);
+
+document.getElementById("search-close")?.addEventListener("click", closeSearch);
+
+searchOverlay?.addEventListener("click", (event) => {
+  if (event.target === searchOverlay) {
+    closeSearch();
+  }
+});
+
+searchInput?.addEventListener("input", runSearch);
+
+window.addEventListener("hashchange", render);
+
+/* =========================================================
+   INITIALIZE
+========================================================= */
+
+updateCartCount();
+
+render();
