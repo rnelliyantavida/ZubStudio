@@ -41,6 +41,12 @@ let productLoadError = "";
 
 let cart = JSON.parse(localStorage.getItem("zubstudioCart")) || [];
 
+let shopSearch = "";
+
+let shopMinPrice = "";
+
+let shopMaxPrice = "";
+
 let selectedSize = null;
 
 let adminImages = [];
@@ -950,9 +956,41 @@ function homePage() {
 /* =========================================================
    SHOP
 ========================================================= */
+function getFilteredShopProducts() {
+  let filtered = [...products];
 
+  /* SEARCH PRODUCT DESCRIPTION */
+
+  const query = shopSearch.trim().toLowerCase();
+
+  if (query) {
+    filtered = filtered.filter((product) => {
+      const description = String(product.description || "").toLowerCase();
+
+      return description.includes(query);
+    });
+  }
+
+  /* MINIMUM PRICE */
+
+  if (shopMinPrice !== "" && Number.isFinite(Number(shopMinPrice))) {
+    const minimum = Number(shopMinPrice);
+
+    filtered = filtered.filter((product) => Number(product.price) >= minimum);
+  }
+
+  /* MAXIMUM PRICE */
+
+  if (shopMaxPrice !== "" && Number.isFinite(Number(shopMaxPrice))) {
+    const maximum = Number(shopMaxPrice);
+
+    filtered = filtered.filter((product) => Number(product.price) <= maximum);
+  }
+
+  return filtered;
+}
 function shopPage() {
-  const filtered = products;
+  const filtered = getFilteredShopProducts();
 
   return `
 
@@ -975,6 +1013,85 @@ function shopPage() {
     </section>
 
 
+    <section class="shop-filter-section">
+
+      <div class="shop-search-field">
+
+        <label for="shopSearch">
+          Search Collection
+        </label>
+
+        <div class="shop-search-input-wrap">
+
+          <i class="bx bx-search"></i>
+
+          <input
+            id="shopSearch"
+            type="search"
+            placeholder="Search by fabric, style, details..."
+            value="${escapeHTML(shopSearch)}"
+            oninput="updateShopSearch(this.value)"
+          >
+
+        </div>
+
+      </div>
+
+
+      <div class="shop-price-filters">
+
+        <div class="shop-price-field">
+
+          <label for="shopMinPrice">
+            Min Price
+          </label>
+
+          <div class="shop-price-input-wrap">
+
+            <span>₹</span>
+
+            <input
+              id="shopMinPrice"
+              type="number"
+              min="0"
+              placeholder="Min"
+              value="${escapeHTML(shopMinPrice)}"
+              oninput="updateShopMinPrice(this.value)"
+            >
+
+          </div>
+
+        </div>
+
+
+        <div class="shop-price-field">
+
+          <label for="shopMaxPrice">
+            Max Price
+          </label>
+
+          <div class="shop-price-input-wrap">
+
+            <span>₹</span>
+
+            <input
+              id="shopMaxPrice"
+              type="number"
+              min="0"
+              placeholder="Max"
+              value="${escapeHTML(shopMaxPrice)}"
+              oninput="updateShopMaxPrice(this.value)"
+            >
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
     <div class="shop-toolbar">
 
       <div class="product-count">
@@ -985,6 +1102,20 @@ function shopPage() {
 
       </div>
 
+      ${
+        shopSearch || shopMinPrice || shopMaxPrice
+          ? `
+              <button
+                type="button"
+                class="shop-clear-filters"
+                onclick="clearShopFilters()"
+              >
+                Clear Filters
+              </button>
+            `
+          : ""
+      }
+
     </div>
 
 
@@ -994,24 +1125,36 @@ function shopPage() {
         filtered.length
           ? `
 
-            <div class="product-grid">
+              <div class="product-grid">
 
-              ${filtered.map(productCard).join("")}
+                ${filtered.map(productCard).join("")}
 
-            </div>
+              </div>
 
-          `
+            `
           : `
 
-            <div class="empty-cart">
+              <div class="empty-cart">
 
-              <p>
-                No pieces available yet.
-              </p>
+                <h2>
+                  No pieces found
+                </h2>
 
-            </div>
+                <p>
+                  Try another search or price range.
+                </p>
 
-          `
+                <button
+                  type="button"
+                  class="btn btn-dark"
+                  onclick="clearShopFilters()"
+                >
+                  Clear Filters
+                </button>
+
+              </div>
+
+            `
       }
 
     </section>
@@ -1020,6 +1163,81 @@ function shopPage() {
     ${footer()}
 
   `;
+}
+function updateShopSearch(value) {
+  shopSearch = value;
+
+  refreshShopResults();
+}
+
+function updateShopMinPrice(value) {
+  shopMinPrice = value;
+
+  refreshShopResults();
+}
+
+function updateShopMaxPrice(value) {
+  shopMaxPrice = value;
+
+  refreshShopResults();
+}
+
+function clearShopFilters() {
+  shopSearch = "";
+  shopMinPrice = "";
+  shopMaxPrice = "";
+
+  render();
+}
+
+function refreshShopResults() {
+  const filtered = getFilteredShopProducts();
+
+  const productCount = document.querySelector(".product-count");
+
+  const productsSection = document.querySelector(".shop-products");
+
+  if (productCount) {
+    productCount.textContent = `${filtered.length} ${
+      filtered.length === 1 ? "piece" : "pieces"
+    }`;
+  }
+
+  if (productsSection) {
+    productsSection.innerHTML = filtered.length
+      ? `
+
+          <div class="product-grid">
+
+            ${filtered.map(productCard).join("")}
+
+          </div>
+
+        `
+      : `
+
+          <div class="empty-cart">
+
+            <h2>
+              No pieces found
+            </h2>
+
+            <p>
+              Try another search or price range.
+            </p>
+
+            <button
+              type="button"
+              class="btn btn-dark"
+              onclick="clearShopFilters()"
+            >
+              Clear Filters
+            </button>
+
+          </div>
+
+        `;
+  }
 }
 
 /* =========================================================

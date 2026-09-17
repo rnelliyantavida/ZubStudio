@@ -784,6 +784,205 @@ main {
 
   line-height: 1.8;
 }
+/* =========================================================
+   SHOP SEARCH + PRICE FILTERS
+========================================================= */
+
+.shop-filter-section {
+  width: min(var(--shell), calc(100% - 80px));
+
+  margin: 0 auto;
+
+  padding: 10px 0 30px;
+
+  display: grid;
+
+  grid-template-columns: minmax(300px, 1fr) auto;
+
+  align-items: end;
+
+  gap: 35px;
+}
+
+/* LABELS */
+
+.shop-search-field label,
+.shop-price-field label {
+  display: block;
+
+  margin-bottom: 9px;
+
+  color: var(--grey);
+
+  font-size: 9px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.16em;
+
+  text-transform: uppercase;
+}
+
+/* SEARCH */
+
+.shop-search-input-wrap {
+  position: relative;
+
+  width: 100%;
+}
+
+.shop-search-input-wrap i {
+  position: absolute;
+
+  left: 16px;
+
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: var(--grey);
+
+  font-size: 19px;
+
+  pointer-events: none;
+}
+
+.shop-search-input-wrap input {
+  width: 100%;
+
+  height: 54px;
+
+  padding: 0 18px 0 48px;
+
+  border: 1px solid var(--line);
+
+  border-radius: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  color: var(--black);
+
+  font-size: 12px;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.shop-search-input-wrap input:focus {
+  border-color: var(--black);
+
+  background: white;
+}
+
+.shop-search-input-wrap input::placeholder {
+  color: #aaa59d;
+}
+
+/* PRICE FILTERS */
+
+.shop-price-filters {
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 12px;
+}
+
+.shop-price-field {
+  width: 145px;
+}
+
+.shop-price-input-wrap {
+  position: relative;
+}
+
+.shop-price-input-wrap span {
+  position: absolute;
+
+  left: 15px;
+
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: var(--grey);
+
+  font-size: 12px;
+
+  pointer-events: none;
+}
+
+.shop-price-input-wrap input {
+  width: 100%;
+
+  height: 54px;
+
+  padding: 0 12px 0 31px;
+
+  border: 1px solid var(--line);
+
+  border-radius: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  color: var(--black);
+
+  font-size: 12px;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.shop-price-input-wrap input:focus {
+  border-color: var(--black);
+
+  background: white;
+}
+
+.shop-price-input-wrap input::placeholder {
+  color: #aaa59d;
+}
+
+/* REMOVE NUMBER INPUT ARROWS */
+
+.shop-price-input-wrap input::-webkit-outer-spin-button,
+.shop-price-input-wrap input::-webkit-inner-spin-button {
+  margin: 0;
+
+  -webkit-appearance: none;
+}
+
+.shop-price-input-wrap input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* CLEAR FILTERS */
+
+.shop-clear-filters {
+  padding: 5px 0;
+
+  border: 0;
+
+  border-bottom: 1px solid var(--black);
+
+  background: transparent;
+
+  color: var(--black);
+
+  font-size: 9px;
+
+  font-weight: 600;
+
+  letter-spacing: 0.14em;
+
+  text-transform: uppercase;
+}
 
 .shop-toolbar {
   width: min(var(--shell), calc(100% - 80px));
@@ -1947,6 +2146,51 @@ main {
     width: 100%;
 
     padding: 60px 20px 35px;
+  }
+  /* SHOP SEARCH + PRICE FILTERS */
+
+  .shop-filter-section {
+    width: 100%;
+
+    padding: 0 15px 22px;
+
+    display: block;
+  }
+
+  .shop-search-field {
+    width: 100%;
+
+    margin-bottom: 16px;
+  }
+
+  .shop-search-input-wrap input {
+    height: 52px;
+
+    font-size: 12px;
+  }
+
+  .shop-price-filters {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 10px;
+  }
+
+  .shop-price-field {
+    width: 100%;
+  }
+
+  .shop-price-input-wrap input {
+    height: 50px;
+
+    font-size: 12px;
+  }
+
+  .shop-clear-filters {
+    flex-shrink: 0;
   }
 
   .shop-toolbar {
