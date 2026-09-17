@@ -24,7 +24,7 @@ const CONFIG = {
   homeNewArrivalLimit: 4,
 
   /* HOW MANY DAYS COUNT AS "NEW" */
-  newArrivalDays: 30,
+  newArrivalDays: 3,
 };
 
 /* =========================================================
@@ -40,8 +40,6 @@ let productsLoading = false;
 let productLoadError = "";
 
 let cart = JSON.parse(localStorage.getItem("zubstudioCart")) || [];
-
-let activeCategory = "All";
 
 let selectedSize = null;
 
@@ -267,21 +265,6 @@ function isNewProduct(product) {
 
 function getNewArrivals() {
   return sortNewestFirst(products.filter((product) => isNewProduct(product)));
-}
-
-/* =========================================================
-   CATEGORIES
-
-   GENERATED AUTOMATICALLY
-   FROM MONGODB PRODUCTS.
-========================================================= */
-
-function getCategories() {
-  const categories = products
-    .map((product) => product.category?.trim())
-    .filter(Boolean);
-
-  return ["All", ...new Set(categories)];
 }
 
 /* =========================================================
@@ -707,21 +690,6 @@ function productCard(product) {
       <div class="product-info">
 
 
-        ${
-          product.category
-            ? `
-
-              <p class="product-category">
-
-                ${escapeHTML(product.category)}
-
-              </p>
-
-            `
-            : ""
-        }
-
-
         <a
           href="#/product/${id}"
         >
@@ -984,105 +952,43 @@ function homePage() {
 ========================================================= */
 
 function shopPage() {
-  const categories = getCategories();
-
-  const filtered =
-    activeCategory === "All"
-      ? products
-      : products.filter((product) => product.category === activeCategory);
+  const filtered = products;
 
   return `
 
-
     <section class="shop-header">
 
-
       <p class="section-eyebrow">
-
         ZUBSTUDIO
-
       </p>
-
 
       <h1>
-
         The Collection
-
       </h1>
 
-
       <p>
-
         Refined wardrobe pieces designed
-
         with intention, versatility and
-
         enduring style.
-
       </p>
-
 
     </section>
 
 
-
     <div class="shop-toolbar">
-
-
-      <div class="filters">
-
-
-        ${categories
-          .map(
-            (category) => `
-
-
-              <button
-
-                class="
-                  filter-button
-
-                  ${activeCategory === category ? "active" : ""}
-                "
-
-                onclick="
-                  setCategory(
-                    '${escapeHTML(category)}'
-                  )
-                "
-              >
-
-                ${escapeHTML(category)}
-
-              </button>
-
-
-            `,
-          )
-          .join("")}
-
-
-      </div>
-
 
       <div class="product-count">
 
-
         ${filtered.length}
-
 
         ${filtered.length === 1 ? "piece" : "pieces"}
 
-
       </div>
-
 
     </div>
 
 
-
     <section class="shop-products">
-
 
       ${
         filtered.length
@@ -1100,16 +1006,13 @@ function shopPage() {
             <div class="empty-cart">
 
               <p>
-
-                No pieces in this category yet.
-
+                No pieces available yet.
               </p>
 
             </div>
 
           `
       }
-
 
     </section>
 
@@ -1120,19 +1023,10 @@ function shopPage() {
 }
 
 /* =========================================================
-   SET CATEGORY
-========================================================= */
+   GET NEW ARRIVALS
 
-function setCategory(category) {
-  activeCategory = category;
-
-  render();
-}
-
-/* =========================================================
-   NEW ARRIVALS PAGE
-
-   LAST 30 DAYS
+   Shows products added within
+   last 3 days.
 ========================================================= */
 
 function newArrivalsPage() {
@@ -1311,21 +1205,6 @@ function productPage(id) {
 
 
       <div class="product-details">
-
-
-        ${
-          product.category
-            ? `
-
-              <p class="product-category">
-
-                ${escapeHTML(product.category)}
-
-              </p>
-
-            `
-            : ""
-        }
 
 
         <h1>
@@ -2535,8 +2414,6 @@ function runSearch() {
     const searchable = [
       product.name,
 
-      product.category,
-
       product.color,
 
       product.code,
@@ -2610,10 +2487,6 @@ function adminPage() {
     Pull category suggestions
     from MongoDB.
   */
-
-  const existingCategories = getCategories().filter(
-    (category) => category !== "All",
-  );
 
   return `
 
@@ -2807,83 +2680,6 @@ function adminPage() {
 
 
             </div>
-
-
-
-            <!-- CATEGORY -->
-
-
-            <div class="admin-field admin-full">
-
-
-              <label for="adminProductCategory">
-
-                Category
-
-              </label>
-
-
-              <input
-
-                id="adminProductCategory"
-
-                type="text"
-
-                list="adminCategorySuggestions"
-
-                placeholder="e.g. Sets, Kurtas, Sarees"
-
-              >
-
-
-              <datalist
-                id="adminCategorySuggestions"
-              >
-
-
-                ${existingCategories
-                  .map(
-                    (category) => `
-
-                      <option
-                        value="${escapeHTML(category)}"
-                      ></option>
-
-                    `,
-                  )
-                  .join("")}
-
-
-                <!-- STARTER SUGGESTIONS -->
-
-
-                <option value="Sets"></option>
-
-                <option value="Kurtas"></option>
-
-                <option value="Dresses"></option>
-
-                <option value="Abayas"></option>
-
-                <option value="Sarees"></option>
-
-                <option value="Churidars"></option>
-
-
-              </datalist>
-
-
-              <p class="admin-field-help">
-
-                Choose an existing category
-
-                or type a new one.
-
-              </p>
-
-
-            </div>
-
 
 
             <div class="admin-field admin-full">
@@ -3253,10 +3049,6 @@ async function publishAdminProduct() {
 
   const price = document.getElementById("adminProductPrice")?.value;
 
-  const category = document
-    .getElementById("adminProductCategory")
-    ?.value.trim();
-
   const description = document
     .getElementById("adminProductDescription")
     ?.value.trim();
@@ -3333,10 +3125,6 @@ async function publishAdminProduct() {
         formData.append("code", code);
       }
 
-      if (category) {
-        formData.append("category", category);
-      }
-
       if (description) {
         formData.append("description", description);
       }
@@ -3395,8 +3183,6 @@ async function publishAdminProduct() {
     document.getElementById("adminProductCode").value = "";
 
     document.getElementById("adminProductPrice").value = "";
-
-    document.getElementById("adminProductCategory").value = "";
 
     document.getElementById("adminProductDescription").value = "";
 
@@ -3460,12 +3246,6 @@ async function render() {
   const [page, parameter] = getRoute();
 
   mobileMenu?.classList.remove("open");
-
-  /*
-    PRODUCTS ARE NEEDED FOR ADMIN TOO
-    BECAUSE ADMIN CATEGORY SUGGESTIONS
-    COME FROM MONGODB.
-  */
 
   if (!productsLoaded) {
     app.innerHTML = loadingPage();
